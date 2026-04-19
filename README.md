@@ -23,6 +23,7 @@ Lean technical case for Oracle APEX on Autonomous Database with:
     ├── 01_tables.sql
     ├── 02_packages.sql
     ├── 03_ords_rest.sql
+    ├── 04_apex_helpers.sql
     └── 06_test_calls.sql
 ```
 
@@ -33,6 +34,7 @@ Lean technical case for Oracle APEX on Autonomous Database with:
    - [sql/01_tables.sql](sql/01_tables.sql)
    - [sql/02_packages.sql](sql/02_packages.sql)
    - [sql/03_ords_rest.sql](sql/03_ords_rest.sql)
+   - [sql/04_apex_helpers.sql](sql/04_apex_helpers.sql)
 3. Build the APEX app using [docs/04_apex_build_steps.md](docs/04_apex_build_steps.md)
 4. Configure Google Cloud using [docs/05_google_setup.md](docs/05_google_setup.md)
 5. Configure Google in APEX using [docs/05a_apex_google_config.md](docs/05a_apex_google_config.md)
@@ -61,6 +63,8 @@ chmod +x run_sqlcl.sh
 ```
 
 `.env.local` is ignored by git and should remain local only.
+
+`sql/04_apex_helpers.sql` is optional from a functional perspective, but useful if you want to use `app_apex_auth.post_login` in the APEX authentication scheme's `Post-Authentication Procedure Name` field.
 
 ## Core Design Decisions
 

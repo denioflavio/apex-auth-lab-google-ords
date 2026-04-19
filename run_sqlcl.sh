@@ -53,6 +53,9 @@ case "${1:-all}" in
   ords)
     run_script "${PROJECT_DIR}/sql/03_ords_rest.sql"
     ;;
+  apex-helpers)
+    run_script "${PROJECT_DIR}/sql/04_apex_helpers.sql"
+    ;;
   checks)
     run_script "${PROJECT_DIR}/sql/06_test_calls.sql"
     ;;
@@ -60,10 +63,10 @@ case "${1:-all}" in
     run_script "${PROJECT_DIR}/sql/01_tables.sql"
     run_script "${PROJECT_DIR}/sql/02_packages.sql"
     run_script "${PROJECT_DIR}/sql/03_ords_rest.sql"
+    run_script "${PROJECT_DIR}/sql/04_apex_helpers.sql"
     ;;
   *)
-    echo "Usage: ./run_sqlcl.sh [test|tables|packages|ords|checks|all]"
+    echo "Usage: ./run_sqlcl.sh [test|tables|packages|ords|apex-helpers|checks|all]"
     exit 1
     ;;
 esac
-

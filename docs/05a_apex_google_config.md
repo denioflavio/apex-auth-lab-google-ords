@@ -101,6 +101,10 @@ After saving the authentication scheme:
    - `G_GOOGLE_SUB`
    - `G_SOCIAL_EMAIL`
    - `G_SOCIAL_FULL_NAME`
+4. Optionally set `Post-Authentication Procedure Name` to:
+   - `app_apex_auth.post_login`
+
+Use that option only if you want the user lookup to happen inside a database procedure instead of a page process.
 
 ## 6. How to Read the Identity Attributes
 
@@ -124,6 +128,8 @@ end;
 ```
 
 This approach is simpler and more reliable than calling a version-specific API to fetch claims programmatically.
+
+If you use `app_apex_auth.post_login`, run `sql/04_apex_helpers.sql` first.
 
 ## 7. Recommended Post-Login Flow
 

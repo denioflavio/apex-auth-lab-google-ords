@@ -51,6 +51,13 @@ In the authentication scheme:
 - `Map Additional User Attributes To`:
   - `G_GOOGLE_SUB,G_SOCIAL_EMAIL,G_SOCIAL_FULL_NAME`
 
+You have two valid implementation choices:
+
+- Recommended for this demo:
+  - keep the lookup logic in a page process on Home or on a routing page
+- Optional:
+  - use the database procedure `app_apex_auth.post_login` in the authentication scheme's `Post-Authentication Procedure Name`
+
 ### Recommended Process: `Load Social Identity`
 
 Type:
@@ -89,6 +96,16 @@ Practical note:
 - This approach avoids version-specific APIs such as `apex_authentication.get_attribute`.
 - It also avoids `%ROWTYPE` in the page process, which can fail if the page parsing context cannot resolve the table name.
 - Before refining the flow, perform a login test and confirm that the mapped items receive values.
+
+### Optional Post-Authentication Procedure
+
+If you prefer to centralize the lookup in the database, execute `sql/04_apex_helpers.sql` and set this value in the authentication scheme:
+
+```text
+app_apex_auth.post_login
+```
+
+That helper procedure reads `G_GOOGLE_SUB` from session state and sets `G_APP_USER_ID` when the user already exists.
 
 ## 4. Main Branch After Login
 
@@ -307,11 +324,14 @@ Keep the APEX default.
 2. Create the `Application Items`
 3. Create the Google authentication scheme
 4. Configure the callback URI in Google Cloud
-5. Create the social identity loading process
-6. Create the branch to page 10 or 20
-7. Create the page 10 process calling `app_user_api.complete_registration`
-8. Create the page 20 process to display credentials
-9. Test the full flow
+5. Configure attribute mapping for `sub,email,name`
+6. Choose either:
+   - a landing page process
+   - or `app_apex_auth.post_login`
+7. Create the branch to page 10 or 20
+8. Create the page 10 process calling `app_user_api.complete_registration`
+9. Create the page 20 process to display credentials
+10. Test the full flow
 
 ## 12. Important Note About Claims in APEX
 
