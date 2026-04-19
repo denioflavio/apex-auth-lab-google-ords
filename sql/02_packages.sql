@@ -421,11 +421,17 @@ create or replace package body app_user_api as
     )
     is
     begin
-        select ords_client_name, ords_client_id
-          into p_out_client_name, p_out_client_id
-          from app_user_oauth_clients
-         where app_user_id = p_app_user_id
-           and active_flag = 'Y';
+        begin
+            select ords_client_name, ords_client_id
+              into p_out_client_name, p_out_client_id
+              from app_user_oauth_clients
+             where app_user_id = p_app_user_id
+               and active_flag = 'Y';
+        exception
+            when no_data_found then
+                p_out_client_name := null;
+                p_out_client_id   := null;
+        end;
     end get_credentials_for_display;
 
     procedure write_runtime_log (
