@@ -1,0 +1,194 @@
+prompt =========================================================
+prompt 03_ords_rest.sql
+prompt ORDS REST, role, privilege, and endpoint setup
+prompt =========================================================
+
+set define off
+
+-------------------------------------------------------------------------------
+-- 1. REST-enable the schema
+-- Run once. If the schema is already enabled, keep or adjust as needed.
+-------------------------------------------------------------------------------
+begin
+    ords.enable_schema(
+        p_enabled             => true,
+        p_schema              => user,
+        p_url_mapping_type    => 'BASE_PATH',
+        p_url_mapping_pattern => lower(user),
+        p_auto_rest_auth      => false
+    );
+    commit;
+exception
+    when others then
+        if sqlcode not in (-20000, -955) then
+            raise;
+        end if;
+end;
+/
+
+-------------------------------------------------------------------------------
+-- 2. ORDS role used by the demo endpoint
+-------------------------------------------------------------------------------
+begin
+    ords.create_role(
+        p_role_name => 'app_me_role'
+    );
+    commit;
+exception
+    when others then
+        if sqlcode not in (-20001, -955) then
+            raise;
+        end if;
+end;
+/
+
+-------------------------------------------------------------------------------
+-- 3. Module / template / handler
+-- Expected base path: /ords/<schema-mapping>/api/v1/me
+-------------------------------------------------------------------------------
+begin
+    ords.delete_module(
+        p_module_name => 'api'
+    );
+    commit;
+exception
+    when others then
+        null;
+end;
+/
+
+begin
+    ords.define_module(
+        p_module_name    => 'api',
+        p_base_path      => 'api/',
+        p_items_per_page => 0,
+        p_status         => 'PUBLISHED',
+        p_comments       => 'APEX + Google + ORDS OAuth2 client credentials demo case'
+    );
+
+    ords.define_template(
+        p_module_name => 'api',
+        p_pattern     => 'v1/me'
+    );
+
+    ords.define_handler(
+        p_module_name => 'api',
+        p_pattern     => 'v1/me',
+        p_method      => 'GET',
+        p_source_type => ords.source_type_plsql,
+        p_mimes_allowed => 'application/json',
+        p_source      => q'[
+declare
+    l_me                app_user_api.t_me_rec;
+    l_current_user      varchar2(255 char) := :current_user;
+    l_remote_user       varchar2(255 char) := :remote_user;
+    l_remote_ident      varchar2(255 char) := owa_util.get_cgi_env('REMOTE_IDENT');
+begin
+    owa_util.mime_header('application/json', false);
+    htp.p('Cache-Control: no-store');
+    owa_util.http_header_close;
+
+    l_me := app_user_api.get_me_by_runtime(
+        p_current_user_value => l_current_user,
+        p_remote_user_value  => l_remote_user,
+        p_remote_ident_value => l_remote_ident
+    );
+
+    apex_json.open_object;
+    apex_json.write('app_user_id',     l_me.app_user_id);
+    apex_json.write('email',           l_me.email);
+    apex_json.write('full_name',       l_me.full_name);
+    apex_json.write('phone_number',    l_me.phone_number);
+    apex_json.write('ords_client_id',  l_me.ords_client_id);
+    apex_json.write('ords_client_name',l_me.ords_client_name);
+    apex_json.write('created_at',      to_char(l_me.created_at, 'YYYY-MM-DD"T"HH24:MI:SS'));
+    apex_json.close_object;
+exception
+    when others then
+        apex_json.open_object;
+        apex_json.write('error', 'unable_to_resolve_authenticated_client');
+        apex_json.write('message', sqlerrm);
+        apex_json.write('current_user', l_current_user);
+        apex_json.write('remote_user', l_remote_user);
+        apex_json.write('remote_ident', l_remote_ident);
+        apex_json.write('client_identifier', sys_context('userenv', 'client_identifier'));
+        apex_json.close_object;
+end;
+        ]'
+    );
+
+    commit;
+end;
+/
+
+-------------------------------------------------------------------------------
+-- 4. Optional diagnostics endpoint
+-- Helps validate what ORDS actually propagates at runtime
+-------------------------------------------------------------------------------
+begin
+    ords.define_template(
+        p_module_name => 'api',
+        p_pattern     => 'v1/runtime-diagnostics'
+    );
+
+    ords.define_handler(
+        p_module_name => 'api',
+        p_pattern     => 'v1/runtime-diagnostics',
+        p_method      => 'GET',
+        p_source_type => ords.source_type_plsql,
+        p_mimes_allowed => 'application/json',
+        p_source      => q'[
+begin
+    owa_util.mime_header('application/json', false);
+    htp.p('Cache-Control: no-store');
+    owa_util.http_header_close;
+
+    apex_json.open_object;
+    apex_json.write('current_user', :current_user);
+    apex_json.write('remote_user', :remote_user);
+    apex_json.write('remote_ident', owa_util.get_cgi_env('REMOTE_IDENT'));
+    apex_json.write('client_identifier', sys_context('userenv', 'client_identifier'));
+    apex_json.write('session_user', sys_context('userenv', 'session_user'));
+    apex_json.write('current_schema', sys_context('userenv', 'current_schema'));
+    apex_json.close_object;
+end;
+        ]'
+    );
+
+    commit;
+end;
+/
+
+-------------------------------------------------------------------------------
+-- 5. Privilege protecting the endpoint
+-------------------------------------------------------------------------------
+begin
+    ords.delete_privilege(
+        p_name => 'app.me.privilege'
+    );
+    commit;
+exception
+    when others then
+        null;
+end;
+/
+
+begin
+    ords.define_privilege(
+        p_privilege_name => 'app.me.privilege',
+        p_roles          => owa.vc_arr('app_me_role'),
+        p_patterns       => owa.vc_arr('/api/v1/me', '/api/v1/runtime-diagnostics'),
+        p_modules        => owa.vc_arr('api'),
+        p_label          => 'Access app me endpoint',
+        p_description    => 'Allows access to the /api/v1/me endpoint'
+    );
+    commit;
+end;
+/
+
+prompt =========================================================
+prompt Expected URLs
+prompt Token endpoint:    /ords/<schema-mapping>/oauth/token
+prompt Resource endpoint: /ords/<schema-mapping>/api/v1/me
+prompt Diag endpoint:     /ords/<schema-mapping>/api/v1/runtime-diagnostics
+prompt =========================================================
