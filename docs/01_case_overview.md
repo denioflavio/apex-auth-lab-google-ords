@@ -13,6 +13,8 @@ This case demonstrates a lean self-service flow in Oracle APEX running on Autono
 
 The design intentionally avoids unnecessary layers. APEX handles the human workflow. ORDS handles token issuance and endpoint protection. The database stores only simple profile and linkage tables.
 
+If you want the shortest path, import [apex/f100/install.sql](../apex/f100/install.sql) and install the application's Supporting Objects. If you want to understand or reapply everything manually, use the standalone scripts in `sql/`.
+
 ## Architecture Summary
 
 ### Components
@@ -27,15 +29,16 @@ The design intentionally avoids unnecessary layers. APEX handles the human workf
 1. The user accesses the APEX application.
 2. The authentication scheme uses Google Social Sign-In.
 3. APEX receives the social identity on the standard callback `apex_authentication.callback` or `apex_authentication.callback2`.
-4. A post-login process extracts identity attributes and stores them into application items:
+4. The authentication scheme maps the social identity into application items:
    - `google_sub`
    - `email`
    - `full_name`
-5. The application looks up `app_users` by `google_sub`.
+5. The authentication scheme calls `APP_APEX_AUTH.POST_LOGIN`.
+6. That procedure looks up `app_users` by `google_sub` and sets `G_APP_USER_ID`.
 
 ### Registration Flow
 
-1. If no user exists for that `google_sub`, APEX redirects to `Complete your profile`.
+1. If `APP_APEX_AUTH.POST_LOGIN` does not find a matching user for that `google_sub`, page 1 routes to `Complete your profile`.
 2. The form pre-fills `full_name` when it is available from Google.
 3. The user submits:
    - full name
@@ -64,6 +67,7 @@ The design intentionally avoids unnecessary layers. APEX handles the human workf
 ### Relationship Between Social Login and OAuth Client
 
 - The primary user identity is `google_sub`.
+- The APEX session username can be a display-oriented value such as `#name#`, but it is not the authoritative identity key in this case.
 - The APEX registration flow creates or updates the row in `app_users`.
 - Each application user can have at most one active OAuth client.
 - The linkage is stored in `app_user_oauth_clients`.
@@ -78,11 +82,36 @@ The design intentionally avoids unnecessary layers. APEX handles the human workf
 - Endpoint protected by ORDS privilege and role
 - Defensive client resolution in the endpoint using `SYS_CONTEXT('USERENV','CLIENT_IDENTIFIER')` first, then runtime fallbacks
 
+## Installation Options
+
+### Option 1: Import the Ready APEX App
+
+- import [apex/f100/install.sql](../apex/f100/install.sql)
+- install the embedded Supporting Objects
+- configure the Google Web Credential
+- review the authentication scheme values
+- run the app
+
+The Supporting Objects package includes the same database setup represented by:
+
+- `sql/01_tables.sql`
+- `sql/02_packages.sql`
+- `sql/03_ords_rest.sql`
+- `sql/04_apex_helpers.sql`
+
+### Option 2: Install Manually
+
+- run the SQL scripts in order
+- build the application manually
+- configure Google in APEX
+- validate the token and API calls
+
 ## Project Files
 
 - `sql/01_tables.sql`
 - `sql/02_packages.sql`
 - `sql/03_ords_rest.sql`
+- `sql/04_apex_helpers.sql`
 - `docs/04_apex_build_steps.md`
 - `docs/05_google_setup.md`
 - `docs/05a_apex_google_config.md`
@@ -92,12 +121,10 @@ The design intentionally avoids unnecessary layers. APEX handles the human workf
 
 ## Suggested Execution Order
 
-1. Run `sql/01_tables.sql`
-2. Run `sql/02_packages.sql`
-3. Run `sql/03_ords_rest.sql`
-4. Build the APEX application using `docs/04_apex_build_steps.md`
-5. Configure Google Cloud using `docs/05_google_setup.md`
-6. Validate with `docs/07_curl_examples.md` and `sql/06_test_calls.sql`
+1. Import the app with Supporting Objects, or run `sql/01_tables.sql` through `sql/04_apex_helpers.sql`
+2. Configure Google Cloud using `docs/05_google_setup.md`
+3. Configure Google in APEX using `docs/05a_apex_google_config.md`
+4. Validate with `docs/07_curl_examples.md`, Postman, and `sql/06_test_calls.sql`
 
 ## Main Objects
 

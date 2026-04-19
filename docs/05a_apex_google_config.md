@@ -2,6 +2,8 @@
 
 This file covers only the APEX-side configuration. The Google Cloud project setup is documented in `docs/05_google_setup.md`.
 
+If you import [apex/f100/install.sql](../apex/f100/install.sql), the authentication scheme is already there. In that scenario, this file is mostly a verification checklist.
+
 ## 1. Create the Web Credential
 
 In APEX:
@@ -101,10 +103,9 @@ After saving the authentication scheme:
    - `G_GOOGLE_SUB`
    - `G_SOCIAL_EMAIL`
    - `G_SOCIAL_FULL_NAME`
-4. Optionally set `Post-Authentication Procedure Name` to:
+4. Set `Post-Authentication Procedure Name` to:
    - `APP_APEX_AUTH.POST_LOGIN`
-
-Use that option only if you want the user lookup to happen inside a database procedure instead of a page process.
+5. Let page 1 branch based on `G_APP_USER_ID`.
 
 ## 5a. Logout Configuration
 
@@ -140,11 +141,17 @@ That does not change logout behavior itself, but it helps during the next login 
 Recommended setup:
 
 - `Username`:
-  - `#sub#`
+  - `#name#`
 - `Additional User Attributes`:
   - `sub,email,name`
 - `Map Additional User Attributes To`:
   - `G_GOOGLE_SUB,G_SOCIAL_EMAIL,G_SOCIAL_FULL_NAME`
+
+Practical note:
+
+- `#name#` is only the APEX session username display used by the current exported app
+- the application identity still relies on `G_GOOGLE_SUB`
+- `APP_APEX_AUTH.POST_LOGIN` reads `G_GOOGLE_SUB` and sets `G_APP_USER_ID`
 
 Then the page or application process can simply read the mapped application items:
 
@@ -158,7 +165,9 @@ end;
 
 This approach is simpler and more reliable than calling a version-specific API to fetch claims programmatically.
 
-If you use `APP_APEX_AUTH.POST_LOGIN`, run `sql/04_apex_helpers.sql` first.
+Run `sql/04_apex_helpers.sql` before rebuilding the app manually.
+
+If you imported the ready app and installed Supporting Objects, this helper package is already included.
 
 Recommended parsing schema for this project:
 
@@ -167,11 +176,12 @@ Recommended parsing schema for this project:
 ## 7. Recommended Post-Login Flow
 
 1. Google login completes successfully.
-2. The process reads `G_GOOGLE_SUB`, `G_SOCIAL_EMAIL`, and `G_SOCIAL_FULL_NAME`.
-3. The application looks up `app_users` by `google_sub`.
-4. If no row is found:
+2. The authentication scheme maps `G_GOOGLE_SUB`, `G_SOCIAL_EMAIL`, and `G_SOCIAL_FULL_NAME`.
+3. `APP_APEX_AUTH.POST_LOGIN` looks up `app_users` by `google_sub` and sets `G_APP_USER_ID`.
+4. Page 1 branches.
+5. If no row is found:
    - redirect to `Complete your profile`
-5. If a row exists:
+6. If a row exists:
    - redirect to `Credentials generated`
 
 ## 8. Quick Login Test

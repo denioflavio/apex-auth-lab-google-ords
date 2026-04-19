@@ -2,6 +2,8 @@
 
 Replace the placeholders before running the commands.
 
+These calls are the quickest proof that the case is really working end to end after installation.
+
 Validated base values in this environment:
 
 ```bash
@@ -94,6 +96,10 @@ Typical response:
 8. Run the `GET /api/v1/me` curl.
 9. Validate that the JSON belongs to the authenticated user.
 10. Run the diagnostics endpoint if there is any doubt about propagated identity.
+
+If you prefer Postman instead of curl, use:
+
+- `postman/APEX_ORDS_Self_Service_Demo.postman_collection.json`
 
 ## 5. Commands with Clear Placeholders
 

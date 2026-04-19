@@ -26,6 +26,8 @@ At the end of this setup, you should have:
 - authorized redirect URIs matching the exact callback URL shown by APEX
 - the `Client ID` and `Client Secret` ready to store in APEX
 
+If you are importing the ready application export, you still need to do this Google setup. Supporting Objects install the database side of the case, not the Google OAuth client.
+
 ## 1. Create a New Google Cloud Project
 
 Menu path:

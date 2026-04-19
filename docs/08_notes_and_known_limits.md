@@ -8,6 +8,7 @@
 - There is no in-app secret rotation.
 - There is no additional service layer between APEX, the database, and ORDS.
 - The API surface is limited to `GET /api/v1/me`.
+- The ready APEX export relies on Supporting Objects to install the required database artifacts in one pass.
 
 ## What to Harden in Production
 

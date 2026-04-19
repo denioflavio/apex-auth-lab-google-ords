@@ -1,5 +1,14 @@
 # APEX Build Steps
 
+This file is the manual build path.
+
+If you are importing [apex/f100/install.sql](../apex/f100/install.sql), most of this is already represented in the exported application. In that case, focus on:
+
+- installing Supporting Objects
+- confirming the parsing schema is `APP_DEMO`
+- creating the Google Web Credential
+- reviewing the authentication scheme values
+
 ## 1. Create the Application
 
 1. Sign in to the APEX workspace.
@@ -9,7 +18,21 @@
    - Page 1: `Home`
    - Page 10: `Complete your profile`
    - Page 20: `Credentials generated`
-5. Keep Home minimal, only to confirm login and provide simple navigation.
+5. Keep Home as a routing page. In the exported app, page 1 branches before header and is normally not shown to the user.
+
+## 1a. Import Alternative
+
+If you do not want to rebuild the app manually:
+
+1. Import [apex/f100/install.sql](../apex/f100/install.sql)
+2. Install the application's Supporting Objects
+3. Open the imported app
+4. Review the authentication scheme and Web Credential setup
+
+Practical note:
+
+- the Supporting Objects bundle installs the database objects the app expects
+- this is the cleanest installation path for blog readers and lab users
 
 ## 2. Required Shared Components
 
@@ -62,78 +85,64 @@ In the environment used for this demo:
 
 For this case, keep the application parsing schema aligned with `APP_DEMO`. That removes the need for schema prefixes and cross-schema grants.
 
+## 2a. Supporting Objects
+
+When you import the ready application, use Supporting Objects instead of running the SQL manually.
+
+Included install scripts:
+
+- `01 Tables`
+- `02 Packages`
+- `03 ORDS REST`
+- `04 APEX Helper Package`
+
+They correspond to:
+
+- `sql/01_tables.sql`
+- `sql/02_packages.sql`
+- `sql/03_ords_rest.sql`
+- `sql/04_apex_helpers.sql`
+
 ## 3. Configure the Post-Login Flow
 
-Configure the authentication scheme so that APEX maps the social claims directly into application items, then use a lightweight process on the landing page to route the user.
+Configure the authentication scheme so that APEX maps the social claims directly into application items, then use `APP_APEX_AUTH.POST_LOGIN` to resolve the existing user before page 1 branches.
 
 In the authentication scheme:
 
 - `Username`:
-  - `#sub#`
+  - `#name#`
 - `Additional User Attributes`:
   - `sub,email,name`
 - `Map Additional User Attributes To`:
   - `G_GOOGLE_SUB,G_SOCIAL_EMAIL,G_SOCIAL_FULL_NAME`
-
-You have two valid implementation choices:
-
-- Recommended for this demo:
-  - keep the lookup logic in a page process on Home or on a routing page
-- Optional:
-  - use the database procedure `APP_APEX_AUTH.POST_LOGIN` in the authentication scheme's `Post-Authentication Procedure Name`
-
-### Recommended Process: `Load Social Identity`
-
-Type:
-
-- `Execute Code`
-
-Suggested PL/SQL:
-
-```plsql
-declare
-    l_sub        varchar2(255 char);
-    l_app_user_id number;
-begin
-    l_sub := :G_GOOGLE_SUB;
-
-    if l_sub is null then
-        raise_application_error(-20050, 'G_GOOGLE_SUB is null. Check the Social Sign-In attribute mapping.');
-    end if;
-
-    begin
-        select id
-          into l_app_user_id
-          from app_users
-         where google_sub = l_sub;
-
-        :G_APP_USER_ID := l_app_user_id;
-    exception
-        when no_data_found then
-            :G_APP_USER_ID := null;
-    end;
-end;
-```
+- `Post-Authentication Procedure Name`:
+  - `APP_APEX_AUTH.POST_LOGIN`
+- `Authentication URI Parameters`:
+  - `prompt=select_account`
 
 Practical note:
 
-- This approach avoids version-specific APIs such as `apex_authentication.get_attribute`.
-- It also avoids `%ROWTYPE` in the page process, which can fail if the page parsing context cannot resolve the table name.
-- Before refining the flow, perform a login test and confirm that the mapped items receive values.
+- `#name#` is only the APEX session username display.
+- `G_GOOGLE_SUB` remains the stable identity key used by the application and by `APP_APEX_AUTH.POST_LOGIN`.
 
-### Optional Post-Authentication Procedure
+### Post-Authentication Procedure
 
-If you prefer to centralize the lookup in the database, execute `sql/04_apex_helpers.sql` and set this value in the authentication scheme:
+Run `sql/04_apex_helpers.sql` and keep this procedure in the authentication scheme:
 
 ```text
 APP_APEX_AUTH.POST_LOGIN
 ```
 
-That helper procedure reads `G_GOOGLE_SUB` from session state and sets `G_APP_USER_ID` when the user already exists.
+Practical note:
+
+- This is the flow used by the exported app.
+- The helper procedure reads `G_GOOGLE_SUB` from session state and sets `G_APP_USER_ID` when the user already exists.
+- That keeps page 1 clean and lets it act only as a router.
+- If you imported the app and installed Supporting Objects, this package is already installed.
 
 ## 4. Main Branch After Login
 
-Create a branch on Home, or on a dedicated landing page used only for routing:
+Create page 1 as a routing page with branches only:
 
 Logic:
 
@@ -188,25 +197,27 @@ Minimum validations:
 
 Type:
 
-- `Execute Code`
+- `Invoke API`
+- Source Type:
+  - `PL/SQL Package`
+- Package:
+  - `APP_USER_API`
+- Procedure:
+  - `COMPLETE_REGISTRATION`
 
-Code:
+Bind the parameters like this:
 
 ```plsql
-begin
-    app_user_api.complete_registration(
-        p_google_sub            => :G_GOOGLE_SUB,
-        p_email                 => :G_SOCIAL_EMAIL,
-        p_full_name             => :P10_FULL_NAME,
-        p_birth_date            => :P10_BIRTH_DATE,
-        p_phone_number          => :P10_PHONE_NUMBER,
-        p_out_app_user_id       => :G_APP_USER_ID,
-        p_out_client_name       => :G_ORDS_CLIENT_NAME,
-        p_out_client_id         => :G_ORDS_CLIENT_ID,
-        p_out_client_secret     => :G_ORDS_CLIENT_SECRET,
-        p_out_created_now_flag  => :G_CREDS_CREATED_NOW
-    );
-end;
+p_google_sub           -> P10_GOOGLE_SUB
+p_email                -> P10_EMAIL
+p_full_name            -> P10_FULL_NAME
+p_birth_date           -> P10_BIRTH_DATE
+p_phone_number         -> P10_PHONE_NUMBER
+p_out_app_user_id      -> G_APP_USER_ID
+p_out_client_name      -> G_ORDS_CLIENT_NAME
+p_out_client_id        -> G_ORDS_CLIENT_ID
+p_out_client_secret    -> G_ORDS_CLIENT_SECRET
+p_out_created_now_flag -> G_CREDS_CREATED_NOW
 ```
 
 Items to return:
@@ -278,17 +289,20 @@ end;
 - Do not persist `client_secret` in a custom table.
 - If the user reloads the page later, the secret may no longer be available in session state. That is expected.
 
-## 7. Page 1: Minimal Home
+## 7. Page 1: Routing Page
 
-It can contain only:
+In the exported app, page 1 does not need a user-facing region.
 
-- Text showing:
-  - authenticated user
-  - email
-  - link to page 20
-  - short `curl` testing hint
+Keep it simple:
 
-Optionally, Home can be only a routing page and does not need to be visible to the user.
+- no page process is required on page 1
+- no display content is required
+- keep the two `Before Header` branches only
+
+Reason:
+
+- `APP_APEX_AUTH.POST_LOGIN` already resolves `G_APP_USER_ID`
+- page 1 only decides whether the user goes to page 10 or page 20
 
 ## 8. First Access vs Returning Access
 
@@ -328,11 +342,14 @@ This case uses:
 
 ### Navigation Menu
 
-You can keep only:
+In the current exported app, keep only:
 
 - `Home`
-- `Complete your profile`
-- `Credentials generated`
+
+Reason:
+
+- page 10 and page 20 are flow pages
+- users reach them through routing and branches, not through the menu
 
 ### Authorization
 
@@ -350,11 +367,9 @@ Keep the APEX default.
 4. Configure the callback URI in Google Cloud
 5. Set or confirm the application parsing schema as `APP_DEMO`
 6. Configure attribute mapping for `sub,email,name`
-7. Choose either:
-   - a landing page process
-   - or `APP_APEX_AUTH.POST_LOGIN`
-8. Create the branch to page 10 or 20
-9. Create the page 10 process calling `APP_USER_API.COMPLETE_REGISTRATION`
+7. Set `APP_APEX_AUTH.POST_LOGIN` in the authentication scheme
+8. Create the page 1 branches to page 10 or 20
+9. Create the page 10 invoke process calling `APP_USER_API.COMPLETE_REGISTRATION`
 10. Create the page 20 process to display credentials
 11. Test the full flow
 

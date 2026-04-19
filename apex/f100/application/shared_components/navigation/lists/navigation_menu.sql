@@ -15,7 +15,7 @@ wwv_flow_imp_shared.create_list(
  p_id=>wwv_flow_imp.id(10859570597292517)
 ,p_name=>'Navigation Menu'
 ,p_list_status=>'PUBLIC'
-,p_version_scn=>45283835304663
+,p_version_scn=>45283842045380
 );
 wwv_flow_imp_shared.create_list_item(
  p_id=>wwv_flow_imp.id(10871162711292361)
@@ -24,24 +24,6 @@ wwv_flow_imp_shared.create_list_item(
 ,p_list_item_link_target=>'f?p=&APP_ID.:1:&APP_SESSION.::&DEBUG.:::'
 ,p_list_item_icon=>'fa-home'
 ,p_list_item_current_type=>'TARGET_PAGE'
-);
-wwv_flow_imp_shared.create_list_item(
- p_id=>wwv_flow_imp.id(10882925636134190)
-,p_list_item_display_sequence=>20
-,p_list_item_link_text=>'Complete your profile'
-,p_list_item_link_target=>'f?p=&APP_ID.:10:&APP_SESSION.::&DEBUG.:::'
-,p_list_item_icon=>'fa-users'
-,p_list_item_current_type=>'COLON_DELIMITED_PAGE_LIST'
-,p_list_item_current_for_pages=>'10'
-);
-wwv_flow_imp_shared.create_list_item(
- p_id=>wwv_flow_imp.id(10891315707954778)
-,p_list_item_display_sequence=>30
-,p_list_item_link_text=>'Credentials generated'
-,p_list_item_link_target=>'f?p=&APP_ID.:20:&APP_SESSION.::&DEBUG.:::'
-,p_list_item_icon=>'fa-user-check'
-,p_list_item_current_type=>'COLON_DELIMITED_PAGE_LIST'
-,p_list_item_current_for_pages=>'20'
 );
 wwv_flow_imp.component_end;
 end;
