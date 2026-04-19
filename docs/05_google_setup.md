@@ -1,189 +1,331 @@
 # Google Cloud Setup
 
-## 1. Create or Select the Project
+This document covers the Google Cloud side of the configuration, from creating a new project to generating the OAuth client used by Oracle APEX Social Sign-In.
 
-1. Open Google Cloud Console.
-2. Create a new project or select an existing one.
-3. Use a simple name, for example `apex-ords-google-demo`.
+## Official References
 
-## 2. Configure the OAuth Consent Screen
+- Google Auth Platform: https://console.cloud.google.com/auth
+- Configure OAuth consent, branding, audience, and scopes:
+  https://developers.google.com/workspace/guides/configure-oauth-consent
+- Manage OAuth app branding:
+  https://support.google.com/cloud/answer/10311615
+- Manage OAuth clients:
+  https://support.google.com/cloud/answer/15549257
+- Google OpenID Connect overview:
+  https://developers.google.com/identity/openid-connect/openid-connect
+- Oracle APEX Social Sign-In:
+  https://docs.oracle.com/en/database/oracle/application-express/21.2/htmdb/social-sign-in.html
 
-1. Go to `APIs & Services` > `OAuth consent screen`.
-2. Choose the user type.
+## Goal
 
-For a demo and testing flow, the simplest choice is usually:
+At the end of this setup, you should have:
 
-- `External`
+- a Google Cloud project
+- OAuth consent configuration
+- an OAuth client of type `Web application`
+- authorized redirect URIs matching the exact callback URL shown by APEX
+- the `Client ID` and `Client Secret` ready to store in APEX
 
-3. Fill in the minimum required fields:
-   - App name
-   - User support email
-   - Developer contact information
-4. Save.
+## 1. Create a New Google Cloud Project
 
-## 3. Keep the App in Testing Mode
+Menu path:
 
-For a technical case and demo:
+- Google Cloud Console
+- top project selector
+- `New Project`
 
-- keep it in `Testing`
+Direct entry point:
 
-This typically requires adding test users.
+- https://console.cloud.google.com/projectcreate
 
-## 4. Add Test Users
+Suggested values:
 
-1. In the same consent screen area, open `Test users`.
-2. Add the Google account that will test the login.
+- Project name:
+  - `apex-google-ords-demo`
+- Organization:
+  - use your default organization if applicable
+- Location:
+  - leave the default if you do not need a specific folder structure
 
-If you skip this while the app is in `Testing`, login may fail.
+After creating the project:
 
-## 5. Create the OAuth Client ID
+1. Wait until the new project is selected in the top bar.
+2. Confirm that all later steps are being done inside this project.
 
-1. Go to `APIs & Services` > `Credentials`.
-2. Click `Create Credentials`.
-3. Choose `OAuth client ID`.
-4. Application type:
-   - `Web application`
-5. Use a clear name:
-   - `apex-google-signin-demo`
+## 2. Open Google Auth Platform
 
-## 6. Configure Redirect URIs
+Menu path:
 
-Register exactly the callback URL shown by APEX in the authentication scheme.
+- `Navigation menu`
+- `Google Auth Platform`
 
-Common patterns are:
+Direct entry point:
 
-```text
-https://<host>/ords/apex_authentication.callback
-```
+- https://console.cloud.google.com/auth
 
-ou
+If the project is brand new, Google may show a `Get started` flow for the Auth Platform.
 
-```text
-https://<host>/ords/apex_authentication.callback2
-```
+## 3. Configure App Branding
 
-In some environments with a different context path, the URL can include additional prefixes. The practical rule is:
+Menu path:
 
-- do not guess
-- copy the exact `Callback URL` displayed by APEX
+- `Google Auth Platform`
+- `Branding`
 
-If you use APEX on Autonomous Database, typical examples look like this:
+Direct help reference:
 
-```text
-https://<adb-endpoint>/ords/apex_authentication.callback
-```
+- https://support.google.com/cloud/answer/10311615
 
-ou
+If prompted, click `Get started`.
 
-```text
-https://<adb-endpoint>/ords/apex_authentication.callback2
-```
+Fill at least:
 
-## 7. Authorized JavaScript Origins
+- `App name`
+- `User support email`
+- `Developer contact information`
 
-In most APEX Social Sign-In flows this is not the critical setting. If you want to populate it anyway:
+For a demo, keep the branding minimal and clear.
 
-```text
-https://<host>
-```
+Suggested example:
 
-Use only the base host of the published APEX/ORDS environment.
+- App name:
+  - `Google ORDS Self-Service Demo`
 
-## 8. Values You Need to Copy into APEX
+Important note:
 
-After creating the Google OAuth client, copy:
+- Google states that branding details shown on the consent screen are controlled from this section.
+- App name and logo display can require verification depending on how the app is used later.
 
-- `Client ID`
-- `Client Secret`
+## 4. Configure Audience
 
-You will use those values in the APEX `Web Credential` or credential store.
+Menu path:
 
-## 9. Recommended Minimum Scopes
+- `Google Auth Platform`
+- `Audience`
 
-For this case, keep the scopes minimal:
+For a simple demo, use the most permissive path that still fits testing:
+
+- User type:
+  - `External`
+
+Then keep the app in a test-ready mode if Google presents the equivalent testing workflow for your project.
+
+Add the accounts that will actually test the login.
+
+Typical action:
+
+- `Add users`
+- enter the Google account emails that will sign in to the APEX app
+
+Practical recommendation:
+
+- for a lab or blog case, do not jump to production or verification too early
+- keep the app limited to test users first
+
+## 5. Configure Data Access / Scopes
+
+Menu path:
+
+- `Google Auth Platform`
+- `Data Access`
+
+Official reference:
+
+- https://developers.google.com/workspace/guides/configure-oauth-consent
+
+Use only the scopes required for this case:
 
 - `openid`
 - `email`
 - `profile`
 
-These scopes are enough to get:
+Why these scopes:
+
+- `openid` is required for OpenID Connect
+- `profile` is used for claims such as `name` and `sub`-related profile context
+- `email` is used to return the email claim
+
+Google OpenID Connect reference:
+
+- https://developers.google.com/identity/openid-connect/openid-connect
+
+Expected identity data for this case:
 
 - `sub`
 - `email`
 - `name`
 
-## 10. Campos esperados no retorno
+## 6. Create the OAuth Client
 
-Para o case funcionar do jeito proposto, precisamos conseguir mapear:
+Menu path:
 
-- `sub`
-- `email`
-- `name`
+- `Google Auth Platform`
+- `Clients`
+- `Create client`
 
-The key claim is `sub`.
+Alternative path:
 
-## 11. Common Errors
+- `APIs & Services`
+- `Credentials`
+- `Create Credentials`
+- `OAuth client ID`
+
+Use these values:
+
+- Application type:
+  - `Web application`
+- Name:
+  - `apex-social-signin-demo`
+
+## 7. Configure Authorized Redirect URIs
+
+This is the most important part.
+
+You must copy the callback URL exactly from APEX and register it exactly in Google Cloud.
+
+Do not guess the path.
+
+Common APEX callback formats:
+
+```text
+https://<host>/ords/apex_authentication.callback
+```
+
+or
+
+```text
+https://<host>/ords/apex_authentication.callback2
+```
+
+How to get the correct value:
+
+1. In APEX, open the Social Sign-In authentication scheme.
+2. Locate the `Callback URL` shown by APEX.
+3. Copy that value exactly.
+4. In Google Cloud, add it under `Authorized redirect URIs`.
+
+Examples:
+
+```text
+https://your-adb-host/ords/apex_authentication.callback
+```
+
+```text
+https://your-adb-host/ords/apex_authentication.callback2
+```
+
+Google redirect URI rules reference:
+
+- https://support.google.com/cloud/answer/15549257
+
+Key rules from Google:
+
+- redirect URIs should use `https`
+- raw IP addresses are not valid, except localhost cases
+- the URI must match exactly
+
+## 8. Authorized JavaScript Origins
+
+For the APEX Social Sign-In case, this is usually not the main issue, but you can populate it if desired.
+
+Use the base host only:
+
+```text
+https://<host>
+```
+
+Do not include the callback path here.
+
+## 9. Copy the Generated Credentials
+
+After creating the client, copy:
+
+- `Client ID`
+- `Client Secret`
+
+These values will be stored in APEX as a `Web Credential` or equivalent credential store entry.
+
+## 10. Suggested End-to-End Sequence
+
+Use this order to avoid rework:
+
+1. Create the Google Cloud project
+2. Configure `Branding`
+3. Configure `Audience`
+4. Configure `Data Access` with:
+   - `openid`
+   - `email`
+   - `profile`
+5. Open APEX and inspect the Social Sign-In scheme
+6. Copy the exact APEX callback URL
+7. Create the Google OAuth client as `Web application`
+8. Paste the callback URL into `Authorized redirect URIs`
+9. Copy `Client ID` and `Client Secret`
+10. Store them in APEX
+
+## 11. Common Errors and How to Avoid Them
 
 ### `redirect_uri_mismatch`
 
-Most common cause:
+Cause:
 
-- the URI registered in Google is not exactly the same one used by APEX
-
-How to avoid it:
-
-1. Copy the `Callback URL` directly from APEX
-2. Paste it into Google without changing anything
-3. Verify protocol, host, path, and slashes
-
-### Incomplete consent screen
-
-Symptoms:
-
-- error when starting the login
-- screen blocking access
+- the URI configured in Google does not exactly match the callback URI used by APEX
 
 How to avoid it:
 
-- fill in the minimum consent screen fields
-- add test users if the app is in `Testing`
+1. copy the callback from APEX
+2. paste it into Google unchanged
+3. confirm protocol, host, path, and slashes
 
-### Unauthorized user in testing mode
+Official reference:
 
-Symptom:
+- https://support.google.com/cloud/answer/15549257
 
-- the Google account cannot authenticate
+### Missing identity attributes
 
-How to avoid it:
+Cause:
 
-- include the account in `Test users`
-
-### Incorrect host
-
-Symptom:
-
-- callback returns to a different host or fails
-
-How to avoid it:
-
-- use the exact host of the published APEX/ORDS environment
-
-### Insufficient scope
-
-Symptom:
-
-- missing claims
+- missing scopes
+- or incomplete APEX mapping
 
 How to avoid it:
 
 - use `openid email profile`
+- map `sub,email,name` in APEX
 
-## 12. Quick Checklist
+### Wrong project selected
 
-1. Project created
-2. Consent screen configured
-3. App kept in `Testing`
-4. Test user added
-5. OAuth Client ID created as `Web application`
-6. Redirect URI exactly matches the APEX callback
-7. `Client ID` and `Client Secret` copied
+Cause:
+
+- credentials were created in one project, but branding or audience was configured in another
+
+How to avoid it:
+
+- always confirm the project selector in the top bar before editing settings
+
+### Test user cannot sign in
+
+Cause:
+
+- the app is not broadly available yet and the account was not added to the allowed testing audience
+
+How to avoid it:
+
+- add the actual test accounts in the audience / test user area
+
+## 12. Final Checklist
+
+Before leaving Google Cloud, confirm:
+
+- project created and selected
+- branding configured
+- audience configured
+- required test users added
+- scopes configured:
+  - `openid`
+  - `email`
+  - `profile`
+- OAuth client created as `Web application`
+- APEX callback URL added exactly
+- `Client ID` copied
+- `Client Secret` copied
