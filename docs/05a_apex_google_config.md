@@ -80,7 +80,7 @@ Common formats are:
 https://<host>/ords/apex_authentication.callback
 ```
 
-ou
+or
 
 ```text
 https://<host>/ords/apex_authentication.callback2
@@ -104,28 +104,31 @@ After saving the authentication scheme:
 
 ## 6. How to Read the Identity Attributes
 
-The case assumes these standard claims:
+Recommended setup:
 
-- `sub`
-- `email`
-- `name`
+- `Username`:
+  - `#sub#`
+- `Additional User Attributes`:
+  - `sub,email,name`
+- `Map Additional User Attributes To`:
+  - `G_GOOGLE_SUB,G_SOCIAL_EMAIL,G_SOCIAL_FULL_NAME`
 
-Exemplo de processo:
+Then the page or application process can simply read the mapped application items:
 
 ```plsql
 begin
-    :G_GOOGLE_SUB       := apex_authentication.get_attribute('sub');
-    :G_SOCIAL_EMAIL     := apex_authentication.get_attribute('email');
-    :G_SOCIAL_FULL_NAME := apex_authentication.get_attribute('name');
+    if :G_GOOGLE_SUB is null then
+        raise_application_error(-20050, 'G_GOOGLE_SUB is null. Check the authentication scheme mapping.');
+    end if;
 end;
 ```
 
-If your APEX version exposes authenticated user attributes differently, adjust this process after validating the real runtime behavior.
+This approach is simpler and more reliable than calling a version-specific API to fetch claims programmatically.
 
 ## 7. Recommended Post-Login Flow
 
 1. Google login completes successfully.
-2. The process reads `sub`, `email`, and `name`.
+2. The process reads `G_GOOGLE_SUB`, `G_SOCIAL_EMAIL`, and `G_SOCIAL_FULL_NAME`.
 3. The application looks up `app_users` by `google_sub`.
 4. If no row is found:
    - redirect to `Complete your profile`
@@ -160,15 +163,16 @@ Cause:
 
 - the URI differs from the one registered in Google
 
-### Missing scopes
+### Missing scopes or missing mapped attributes
 
 Symptom:
 
-- `email` or `name` is missing
+- `G_GOOGLE_SUB`, `G_SOCIAL_EMAIL`, or `G_SOCIAL_FULL_NAME` is null
 
 Cause:
 
-- the scope is smaller than `openid email profile`
+- either the scope is smaller than `openid email profile`
+- or the authentication scheme mapping is incomplete
 
 ### Incorrect credential
 
@@ -187,6 +191,6 @@ The simplest path for this demo is:
 1. Use `Social Sign-In` with the native Google provider, if available
 2. Use a `Web Credential` to store the `client_id` and `client_secret`
 3. Use `openid email profile`
-4. Read `sub`, `email`, and `name`
+4. Read the mapped application items instead of calling `apex_authentication.get_attribute`
 
 If your APEX version does not provide a native Google provider, manual OIDC with the endpoints above preserves the same case design.

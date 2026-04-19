@@ -40,7 +40,16 @@ These items keep the flow simple and avoid repeated lookups.
 
 ## 3. Configure the Post-Login Flow
 
-Create an `On New Instance` process, or a process on the landing page after authentication, to load the social identity and route the user.
+Configure the authentication scheme so that APEX maps the social claims directly into application items, then use a lightweight process on the landing page to route the user.
+
+In the authentication scheme:
+
+- `Username`:
+  - `#sub#`
+- `Additional User Attributes`:
+  - `sub,email,name`
+- `Map Additional User Attributes To`:
+  - `G_GOOGLE_SUB,G_SOCIAL_EMAIL,G_SOCIAL_FULL_NAME`
 
 ### Recommended Process: `Load Social Identity`
 
@@ -53,29 +62,23 @@ Suggested PL/SQL:
 ```plsql
 declare
     l_sub        varchar2(255 char);
-    l_email      varchar2(320 char);
-    l_full_name  varchar2(200 char);
-    l_app_user   app_users%rowtype;
+    l_app_user_id number;
 begin
-    /*
-      Adjust the attribute names to match the actual runtime in your APEX environment.
-      In many Google / OIDC setups, "sub", "email", and "name" work as expected.
-    */
-    :G_GOOGLE_SUB       := apex_authentication.get_attribute('sub');
-    :G_SOCIAL_EMAIL     := apex_authentication.get_attribute('email');
-    :G_SOCIAL_FULL_NAME := apex_authentication.get_attribute('name');
-
     l_sub := :G_GOOGLE_SUB;
 
     if l_sub is null then
-        raise_application_error(-20050, 'The provider did not return the social attribute sub.');
+        raise_application_error(-20050, 'G_GOOGLE_SUB is null. Check the Social Sign-In attribute mapping.');
     end if;
 
     begin
-        l_app_user := app_user_api.find_user_by_google_sub(l_sub);
-        :G_APP_USER_ID := l_app_user.id;
+        select id
+          into l_app_user_id
+          from app_users
+         where google_sub = l_sub;
+
+        :G_APP_USER_ID := l_app_user_id;
     exception
-        when others then
+        when no_data_found then
             :G_APP_USER_ID := null;
     end;
 end;
@@ -83,8 +86,9 @@ end;
 
 Practical note:
 
-- If your APEX version does not expose `apex_authentication.get_attribute`, use the attributes available in the authentication scheme and adjust the process accordingly.
-- Before refining the automation, perform a login test and validate which claims are actually available in your environment.
+- This approach avoids version-specific APIs such as `apex_authentication.get_attribute`.
+- It also avoids `%ROWTYPE` in the page process, which can fail if the page parsing context cannot resolve the table name.
+- Before refining the flow, perform a login test and confirm that the mapped items receive values.
 
 ## 4. Main Branch After Login
 
@@ -187,7 +191,7 @@ This page shows the profile result and the credentials when they have just been 
 - `P20_PHONE_NUMBER` - Display Only
 - `P20_CLIENT_NAME` - Display Only
 - `P20_CLIENT_ID` - Display Only
-- `P20_CLIENT_SECRET` - Display Only ou Textarea Display Only
+- `P20_CLIENT_SECRET` - Display Only or Textarea Display Only
 - `P20_MESSAGE` - Display Only
 
 ### Before Header Process
@@ -311,16 +315,17 @@ Keep the APEX default.
 
 ## 12. Important Note About Claims in APEX
 
-The exact way to retrieve social attributes may vary slightly depending on the APEX version and provider configuration.
+The exact way claims are exposed can vary slightly depending on the APEX version and provider configuration.
 
-Assumption used in this case:
+Recommended implementation for this case:
 
-- the authentication scheme exposes the `sub`, `email`, and `name` claims
+- let the authentication scheme map `sub`, `email`, and `name` into application items
+- then read those application items in page or application processes
 
 Recommended validation:
 
 - perform a login test
-- temporarily display the session attributes
-- adjust the `Load Social Identity` process if needed
+- temporarily display the mapped application items
+- adjust the authentication scheme mapping if needed
 
 If your environment uses `callback2`, the design stays the same. Just make sure the URI registered in Google Cloud exactly matches the value shown by APEX.
