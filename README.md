@@ -41,6 +41,7 @@ Lean technical case for Oracle APEX on Autonomous Database with:
 6. Validate with:
    - [docs/07_curl_examples.md](docs/07_curl_examples.md)
    - [sql/06_test_calls.sql](sql/06_test_calls.sql)
+   - [postman/APEX_ORDS_Self_Service_Demo.postman_collection.json](postman/APEX_ORDS_Self_Service_Demo.postman_collection.json)
 
 ## Local SQLcl Setup
 
@@ -67,6 +68,12 @@ chmod +x run_sqlcl.sh
 `sql/04_apex_helpers.sql` is optional from a functional perspective, but useful if you want to use `APP_APEX_AUTH.POST_LOGIN` in the APEX authentication scheme's `Post-Authentication Procedure Name` field.
 
 This project now uses a dedicated schema named `APP_DEMO`. Keep the APEX application parsing schema aligned with `APP_DEMO` to avoid cross-schema complexity.
+
+For cleanup after manual tests, use:
+
+```bash
+./run_sqlcl.sh reset-demo
+```
 
 ## Core Design Decisions
 

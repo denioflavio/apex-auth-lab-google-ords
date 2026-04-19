@@ -1,3 +1,10 @@
 .env.local
+.venv/
 .wallet/
+.DS_Store
 
+# Raw screenshots and editorial workbench
+prints/
+Prints/
+drafts/
+draft_assets/tmp/

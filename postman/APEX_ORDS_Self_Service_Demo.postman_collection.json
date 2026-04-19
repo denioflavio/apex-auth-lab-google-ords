@@ -1,0 +1,201 @@
+{
+  "info": {
+    "_postman_id": "0e6f2c61-1f51-4f0d-9d51-1d2d8f3c7c01",
+    "name": "APEX ORDS Self-Service Demo",
+    "description": "Postman collection for testing the ORDS client_credentials flow and protected demo endpoints.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Get Access Token",
+      "request": {
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{client_id}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{client_secret}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "grant_type",
+              "value": "client_credentials",
+              "type": "text"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{host}}/ords/{{schema_mapping}}/oauth/token",
+          "host": [
+            "{{host}}"
+          ],
+          "path": [
+            "ords",
+            "{{schema_mapping}}",
+            "oauth",
+            "token"
+          ]
+        },
+        "description": "Exchange ORDS client credentials for an access token."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var jsonData = pm.response.json();",
+              "pm.environment.set('access_token', jsonData.access_token);",
+              "",
+              "pm.test('Access token returned', function () {",
+              "    pm.expect(jsonData.access_token).to.be.a('string').and.not.empty;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Get My Profile",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{access_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{host}}/ords/{{schema_mapping}}/api/v1/me",
+          "host": [
+            "{{host}}"
+          ],
+          "path": [
+            "ords",
+            "{{schema_mapping}}",
+            "api",
+            "v1",
+            "me"
+          ]
+        },
+        "description": "Call the protected demo endpoint and return the authenticated client's own profile data."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status code is 200', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "var jsonData = pm.response.json();",
+              "",
+              "pm.test('Response contains expected identity fields', function () {",
+              "    pm.expect(jsonData).to.have.property('app_user_id');",
+              "    pm.expect(jsonData).to.have.property('email');",
+              "    pm.expect(jsonData).to.have.property('full_name');",
+              "    pm.expect(jsonData).to.have.property('ords_client_id');",
+              "    pm.expect(jsonData).to.have.property('ords_client_name');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Runtime Diagnostics",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{access_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{host}}/ords/{{schema_mapping}}/api/v1/runtime-diagnostics",
+          "host": [
+            "{{host}}"
+          ],
+          "path": [
+            "ords",
+            "{{schema_mapping}}",
+            "api",
+            "v1",
+            "runtime-diagnostics"
+          ]
+        },
+        "description": "Inspect what ORDS propagates in runtime for the authenticated OAuth client."
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "host",
+      "value": "https://GD7949C88CCAFBD-APEXFROMTHEFIELD.adb.sa-saopaulo-1.oraclecloudapps.com"
+    },
+    {
+      "key": "schema_mapping",
+      "value": "app_demo"
+    },
+    {
+      "key": "client_id",
+      "value": ""
+    },
+    {
+      "key": "client_secret",
+      "value": ""
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    }
+  ]
+}
+

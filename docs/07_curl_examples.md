@@ -2,6 +2,13 @@
 
 Replace the placeholders before running the commands.
 
+Validated base values in this environment:
+
+```bash
+export HOST="https://GD7949C88CCAFBD-APEXFROMTHEFIELD.adb.sa-saopaulo-1.oraclecloudapps.com"
+export SCHEMA_MAPPING="app_demo"
+```
+
 ## 1. Get an Access Token
 
 Expected token endpoint:
@@ -65,11 +72,11 @@ Typical response:
 
 ```json
 {
-  "current_user": "some_runtime_value",
-  "remote_user": "some_runtime_value",
-  "client_identifier": "ocidemo123",
-  "session_user": "APP_SCHEMA",
-  "current_schema": "APP_SCHEMA"
+  "current_user": "<CLIENT_ID>",
+  "remote_ident": "<CLIENT_ID>",
+  "client_identifier": "<CLIENT_ID>",
+  "session_user": "APP_DEMO",
+  "current_schema": "APP_DEMO"
 }
 ```
 
@@ -108,4 +115,22 @@ curl -X POST "$HOST/ords/$SCHEMA_MAPPING/oauth/token" \
 curl -X GET "$HOST/ords/$SCHEMA_MAPPING/api/v1/me" \
   -H "Authorization: Bearer <ACCESS_TOKEN>" \
   -H "Accept: application/json"
+```
+
+## 6. Real Validation Example
+
+The flow was validated successfully with the generated ORDS credentials in the target environment.
+
+Observed `/api/v1/me` response:
+
+```json
+{
+  "app_user_id": 1,
+  "email": "denioflavio@gmail.com",
+  "full_name": "Dênio Flávio Garcia",
+  "phone_number": "555444666664",
+  "ords_client_id": "MER5D5tlWsNBFPdslRrLRw..",
+  "ords_client_name": "APPUSR_1_313133363939383836323535353936393037303431",
+  "created_at": "2026-04-19T15:53:27"
+}
 ```

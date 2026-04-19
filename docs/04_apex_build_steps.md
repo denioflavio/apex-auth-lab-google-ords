@@ -23,6 +23,19 @@ Selection:
 - Provider: `Google`, if it is available natively in your APEX version
 - If a native Google provider is not available, use `OpenID Connect`
 
+Recommended logout-related settings for this case:
+
+- `Logout URL`:
+  - leave empty
+- `Authentication URI Parameters`:
+  - optionally set `prompt=select_account`
+
+Reason:
+
+- the app's Navigation Bar logout entry uses `&LOGOUT_URL.`
+- if `Logout URL` is filled with an external address, logout will redirect there
+- for this demo, the cleanest behavior is to terminate the APEX session and stay within the application flow
+
 ### Application Items
 
 Create these `Application Items`:

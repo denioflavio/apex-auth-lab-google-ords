@@ -59,6 +59,9 @@ case "${1:-all}" in
   checks)
     run_script "${PROJECT_DIR}/sql/06_test_calls.sql"
     ;;
+  reset-demo)
+    run_script "${PROJECT_DIR}/sql/07_reset_demo_data.sql"
+    ;;
   all)
     run_script "${PROJECT_DIR}/sql/01_tables.sql"
     run_script "${PROJECT_DIR}/sql/02_packages.sql"
@@ -66,7 +69,7 @@ case "${1:-all}" in
     run_script "${PROJECT_DIR}/sql/04_apex_helpers.sql"
     ;;
   *)
-    echo "Usage: ./run_sqlcl.sh [test|tables|packages|ords|apex-helpers|checks|all]"
+    echo "Usage: ./run_sqlcl.sh [test|tables|packages|ords|apex-helpers|checks|reset-demo|all]"
     exit 1
     ;;
 esac

@@ -123,3 +123,24 @@ The data model uses identity columns, not custom sequences.
 - The schema must be allowed to use the `ORDS` and `OAUTH` packages.
 - APEX Social Sign-In must be available in the environment.
 - The Google redirect URI must exactly match the callback URL shown by APEX.
+
+## Validated Runtime Notes
+
+This case was validated in a real environment with:
+
+- schema mapping:
+  - `app_demo`
+- token endpoint:
+  - `https://GD7949C88CCAFBD-APEXFROMTHEFIELD.adb.sa-saopaulo-1.oraclecloudapps.com/ords/app_demo/oauth/token`
+- protected endpoint:
+  - `https://GD7949C88CCAFBD-APEXFROMTHEFIELD.adb.sa-saopaulo-1.oraclecloudapps.com/ords/app_demo/api/v1/me`
+
+Observed ORDS runtime behavior for `client_credentials`:
+
+- `current_user` contained the `client_id`
+- `remote_ident` contained the `client_id`
+- `client_identifier` contained the `client_id`
+- `session_user` was `APP_DEMO`
+- `current_schema` was `APP_DEMO`
+
+This confirms that the defensive lookup implemented in the package works in the target environment.

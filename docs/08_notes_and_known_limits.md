@@ -61,6 +61,16 @@ In addition:
 
 If your environment propagates identity differently, adjust only `app_user_api.resolve_client_id_from_runtime`.
 
+## Confirmed Runtime Behavior in This Environment
+
+In the validated target environment, the diagnostics endpoint returned the OAuth `client_id` consistently in:
+
+- `current_user`
+- `remote_ident`
+- `client_identifier`
+
+This means the current implementation is already aligned with the observed ORDS runtime behavior for the demo.
+
 ## Natural Next Evolutions
 
 - Controlled secret rotation

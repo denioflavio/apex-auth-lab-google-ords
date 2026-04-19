@@ -106,6 +106,35 @@ After saving the authentication scheme:
 
 Use that option only if you want the user lookup to happen inside a database procedure instead of a page process.
 
+## 5a. Logout Configuration
+
+For this project, keep logout behavior simple.
+
+Recommended configuration in the authentication scheme:
+
+- `Logout URL`:
+  - leave it empty
+
+Why:
+
+- the Navigation Bar logout entry uses `&LOGOUT_URL.`
+- if you hardcode an external URL there, APEX will redirect the user to that URL after logout
+- for Google Social Sign-In, a full identity-provider logout is usually not the practical goal in this demo
+- the main objective is to end the APEX session cleanly
+
+Important practical note:
+
+- signing out of APEX does not necessarily sign the user out of the Google browser session
+- this is expected behavior for this kind of demo
+- if the user starts login again, Google may automatically recognize the existing Google session
+
+If you want a more explicit new-login experience after logout, set this in:
+
+- `Authentication URI Parameters`:
+  - `prompt=select_account`
+
+That does not change logout behavior itself, but it helps during the next login by forcing account selection.
+
 ## 6. How to Read the Identity Attributes
 
 Recommended setup:
@@ -193,6 +222,20 @@ Symptom:
 Cause:
 
 - wrong `Client ID` or `Client Secret` in the web credential
+
+### Logout redirects to the wrong place
+
+Symptom:
+
+- clicking `Sign Out` redirects to an unexpected external page
+
+Cause:
+
+- `Logout URL` in the authentication scheme is set to an external URL
+
+How to avoid it:
+
+- leave `Logout URL` empty for this demo
 
 ## 10. Practical Choice for This Case
 
