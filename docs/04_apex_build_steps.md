@@ -38,6 +38,17 @@ Create these `Application Items`:
 
 These items keep the flow simple and avoid repeated lookups.
 
+### Parsing Schema Check
+
+Before creating the APEX processes, confirm the application's parsing schema.
+
+In the environment used for this demo:
+
+- object owner schema: `APP_DEMO`
+- recommended APEX parsing schema: `APP_DEMO`
+
+For this case, keep the application parsing schema aligned with `APP_DEMO`. That removes the need for schema prefixes and cross-schema grants.
+
 ## 3. Configure the Post-Login Flow
 
 Configure the authentication scheme so that APEX maps the social claims directly into application items, then use a lightweight process on the landing page to route the user.
@@ -56,7 +67,7 @@ You have two valid implementation choices:
 - Recommended for this demo:
   - keep the lookup logic in a page process on Home or on a routing page
 - Optional:
-  - use the database procedure `app_apex_auth.post_login` in the authentication scheme's `Post-Authentication Procedure Name`
+  - use the database procedure `APP_APEX_AUTH.POST_LOGIN` in the authentication scheme's `Post-Authentication Procedure Name`
 
 ### Recommended Process: `Load Social Identity`
 
@@ -102,7 +113,7 @@ Practical note:
 If you prefer to centralize the lookup in the database, execute `sql/04_apex_helpers.sql` and set this value in the authentication scheme:
 
 ```text
-app_apex_auth.post_login
+APP_APEX_AUTH.POST_LOGIN
 ```
 
 That helper procedure reads `G_GOOGLE_SUB` from session state and sets `G_APP_USER_ID` when the user already exists.
@@ -324,14 +335,15 @@ Keep the APEX default.
 2. Create the `Application Items`
 3. Create the Google authentication scheme
 4. Configure the callback URI in Google Cloud
-5. Configure attribute mapping for `sub,email,name`
-6. Choose either:
+5. Set or confirm the application parsing schema as `APP_DEMO`
+6. Configure attribute mapping for `sub,email,name`
+7. Choose either:
    - a landing page process
-   - or `app_apex_auth.post_login`
-7. Create the branch to page 10 or 20
-8. Create the page 10 process calling `app_user_api.complete_registration`
-9. Create the page 20 process to display credentials
-10. Test the full flow
+   - or `APP_APEX_AUTH.POST_LOGIN`
+8. Create the branch to page 10 or 20
+9. Create the page 10 process calling `APP_USER_API.COMPLETE_REGISTRATION`
+10. Create the page 20 process to display credentials
+11. Test the full flow
 
 ## 12. Important Note About Claims in APEX
 

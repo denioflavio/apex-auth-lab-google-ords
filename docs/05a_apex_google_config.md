@@ -102,7 +102,7 @@ After saving the authentication scheme:
    - `G_SOCIAL_EMAIL`
    - `G_SOCIAL_FULL_NAME`
 4. Optionally set `Post-Authentication Procedure Name` to:
-   - `app_apex_auth.post_login`
+   - `APP_APEX_AUTH.POST_LOGIN`
 
 Use that option only if you want the user lookup to happen inside a database procedure instead of a page process.
 
@@ -129,7 +129,11 @@ end;
 
 This approach is simpler and more reliable than calling a version-specific API to fetch claims programmatically.
 
-If you use `app_apex_auth.post_login`, run `sql/04_apex_helpers.sql` first.
+If you use `APP_APEX_AUTH.POST_LOGIN`, run `sql/04_apex_helpers.sql` first.
+
+Recommended parsing schema for this project:
+
+- `APP_DEMO`
 
 ## 7. Recommended Post-Login Flow
 

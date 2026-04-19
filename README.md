@@ -64,7 +64,9 @@ chmod +x run_sqlcl.sh
 
 `.env.local` is ignored by git and should remain local only.
 
-`sql/04_apex_helpers.sql` is optional from a functional perspective, but useful if you want to use `app_apex_auth.post_login` in the APEX authentication scheme's `Post-Authentication Procedure Name` field.
+`sql/04_apex_helpers.sql` is optional from a functional perspective, but useful if you want to use `APP_APEX_AUTH.POST_LOGIN` in the APEX authentication scheme's `Post-Authentication Procedure Name` field.
+
+This project now uses a dedicated schema named `APP_DEMO`. Keep the APEX application parsing schema aligned with `APP_DEMO` to avoid cross-schema complexity.
 
 ## Core Design Decisions
 
