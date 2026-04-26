@@ -1,7 +1,7 @@
-prompt --application/deployment/definition
+prompt --application/shared_components/logic/application_items/g_external_subject
 begin
 --   Manifest
---     INSTALL: 100
+--     APPLICATION ITEM: G_EXTERNAL_SUBJECT
 --   Manifest End
 wwv_flow_imp.component_begin (
  p_version_yyyy_mm_dd=>'2024.11.30'
@@ -11,8 +11,11 @@ wwv_flow_imp.component_begin (
 ,p_default_id_offset=>0
 ,p_default_owner=>'APP_DEMO'
 );
-wwv_flow_imp_shared.create_install(
- p_id=>wwv_flow_imp.id(10913044024043292)
+wwv_flow_imp_shared.create_flow_item(
+ p_id=>wwv_flow_imp.id(12254124158743449)
+,p_name=>'G_EXTERNAL_SUBJECT'
+,p_protection_level=>'I'
+,p_version_scn=>45284476432886
 );
 wwv_flow_imp.component_end;
 end;

@@ -1,0 +1,1016 @@
+prompt =========================================================
+prompt 08_multi_login_evolution.sql
+prompt Adds Custom Login and Facebook Login support
+prompt =========================================================
+
+set define off
+
+-------------------------------------------------------------------------------
+-- Re-runnable table evolution
+-------------------------------------------------------------------------------
+declare
+    procedure add_column_if_missing (
+        p_table_name  in varchar2,
+        p_column_name in varchar2,
+        p_ddl         in varchar2
+    ) is
+        l_count number;
+    begin
+        select count(*)
+          into l_count
+          from user_tab_cols
+         where table_name = upper(p_table_name)
+           and column_name = upper(p_column_name);
+
+        if l_count = 0 then
+            execute immediate p_ddl;
+        end if;
+    end add_column_if_missing;
+begin
+    add_column_if_missing(
+        'APP_USERS',
+        'AUTH_PROVIDER',
+        q'[alter table app_users add auth_provider varchar2(30 char) default 'GOOGLE' not null]'
+    );
+
+    add_column_if_missing(
+        'APP_USERS',
+        'EXTERNAL_SUBJECT',
+        q'[alter table app_users add external_subject varchar2(255 char)]'
+    );
+
+    add_column_if_missing(
+        'APP_USERS',
+        'USERNAME',
+        q'[alter table app_users add username varchar2(320 char)]'
+    );
+
+    add_column_if_missing(
+        'APP_USERS',
+        'PASSWORD_SALT',
+        q'[alter table app_users add password_salt varchar2(64 char)]'
+    );
+
+    add_column_if_missing(
+        'APP_USERS',
+        'PASSWORD_HASH',
+        q'[alter table app_users add password_hash varchar2(255 char)]'
+    );
+
+    add_column_if_missing(
+        'APP_USERS',
+        'PASSWORD_CHANGED_AT',
+        q'[alter table app_users add password_changed_at timestamp with local time zone]'
+    );
+
+    add_column_if_missing(
+        'APP_USERS',
+        'LAST_LOGIN_AT',
+        q'[alter table app_users add last_login_at timestamp with local time zone]'
+    );
+end;
+/
+
+begin
+    execute immediate 'alter table app_users modify password_hash varchar2(255 char)';
+exception
+    when others then
+        if sqlcode != -904 then
+            raise;
+        end if;
+end;
+/
+
+update app_users
+   set auth_provider = nvl(auth_provider, 'GOOGLE'),
+       external_subject = coalesce(external_subject, google_sub)
+ where google_sub is not null;
+
+commit;
+
+begin
+    execute immediate 'alter table app_users modify google_sub null';
+exception
+    when others then
+        if sqlcode != -1451 then
+            raise;
+        end if;
+end;
+/
+
+begin
+    begin
+        execute immediate 'alter table app_users drop constraint app_users_ck_auth_provider';
+    exception
+        when others then
+            if sqlcode != -2443 then
+                raise;
+            end if;
+    end;
+
+    execute immediate q'[
+        alter table app_users add constraint app_users_ck_auth_provider
+        check (auth_provider in ('GOOGLE', 'FACEBOOK', 'CUSTOM'))
+    ]';
+exception
+    when others then
+        if sqlcode != -2264 then
+            raise;
+        end if;
+end;
+/
+
+begin
+    execute immediate q'[
+        create unique index app_users_uix_identity
+            on app_users (
+                case when external_subject is not null then auth_provider end,
+                external_subject
+            )
+    ]';
+exception
+    when others then
+        if sqlcode != -955 then
+            raise;
+        end if;
+end;
+/
+
+begin
+    execute immediate q'[
+        create unique index app_users_uix_custom_username
+            on app_users (
+                case when auth_provider = 'CUSTOM' then lower(username) end
+            )
+    ]';
+exception
+    when others then
+        if sqlcode != -955 then
+            raise;
+        end if;
+end;
+/
+
+declare
+    l_duplicate_email app_users.email%type;
+begin
+    select email
+      into l_duplicate_email
+      from (
+          select min(email) as email
+            from app_users
+           where email is not null
+           group by lower(trim(email))
+          having count(*) > 1
+      )
+     where rownum = 1;
+
+    raise_application_error(
+        -20155,
+        'Duplicate email already exists before creating APP_USERS_UIX_EMAIL. Merge or clean this email first: ' || l_duplicate_email
+    );
+exception
+    when no_data_found then
+        null;
+end;
+/
+
+begin
+    execute immediate q'[
+        create unique index app_users_uix_email
+            on app_users (
+                case when email is not null then lower(trim(email)) end
+            )
+    ]';
+exception
+    when others then
+        if sqlcode != -955 then
+            raise;
+        end if;
+end;
+/
+
+comment on column app_users.auth_provider is
+    'Identity provider used for login: GOOGLE, FACEBOOK, or CUSTOM.';
+
+comment on column app_users.external_subject is
+    'Stable provider user identifier. For custom users, use the normalized username/email.';
+
+comment on column app_users.username is
+    'Local username for CUSTOM login. In this demo, email is the recommended username.';
+
+comment on column app_users.password_hash is
+    'Salted SHA-256 password hash for CUSTOM login only. Never store plain text passwords.';
+
+-------------------------------------------------------------------------------
+-- Package used by the APEX authentication schemes and profile pages
+-------------------------------------------------------------------------------
+create or replace package app_multi_auth as
+    function authenticate_custom (
+        p_username in varchar2,
+        p_password in varchar2
+    ) return boolean;
+
+    procedure post_login_google;
+    procedure post_login_facebook;
+    procedure post_login_custom;
+
+    procedure complete_social_registration (
+        p_auth_provider         in varchar2,
+        p_external_subject      in varchar2,
+        p_email                 in varchar2,
+        p_full_name             in varchar2,
+        p_birth_date            in date,
+        p_phone_number          in varchar2,
+        p_out_app_user_id       out nocopy number,
+        p_out_client_name       out nocopy varchar2,
+        p_out_client_id         out nocopy varchar2,
+        p_out_client_secret     out nocopy varchar2,
+        p_out_created_now_flag  out nocopy varchar2
+    );
+
+    procedure create_custom_user (
+        p_email                 in varchar2,
+        p_full_name             in varchar2,
+        p_birth_date            in date,
+        p_phone_number          in varchar2,
+        p_password              in varchar2,
+        p_out_app_user_id       out nocopy number,
+        p_out_client_name       out nocopy varchar2,
+        p_out_client_id         out nocopy varchar2,
+        p_out_client_secret     out nocopy varchar2,
+        p_out_created_now_flag  out nocopy varchar2
+    );
+end app_multi_auth;
+/
+
+create or replace package body app_multi_auth as
+    g_ords_role_name constant varchar2(128 char) := 'app_me_role';
+    g_ords_priv_name constant varchar2(128 char) := 'app.me.privilege';
+
+    function normalize_provider (
+        p_auth_provider in varchar2
+    ) return varchar2
+    is
+        l_provider varchar2(30 char) := upper(trim(p_auth_provider));
+    begin
+        if l_provider not in ('GOOGLE', 'FACEBOOK', 'CUSTOM') then
+            raise_application_error(-20100, 'Unsupported authentication provider: ' || p_auth_provider);
+        end if;
+
+        return l_provider;
+    end normalize_provider;
+
+    function normalize_username (
+        p_username in varchar2
+    ) return varchar2
+    is
+    begin
+        return lower(trim(p_username));
+    end normalize_username;
+
+    function normalize_email (
+        p_email in varchar2
+    ) return varchar2
+    is
+    begin
+        return lower(trim(p_email));
+    end normalize_email;
+
+    function stable_hash (
+        p_value in varchar2
+    ) return varchar2
+    is
+    begin
+        return apex_util.get_hash(
+            apex_t_varchar2(p_value),
+            false
+        );
+    end stable_hash;
+
+    procedure assert_email_not_registered (
+        p_email             in varchar2,
+        p_allowed_user_id   in number default null,
+        p_attempt_provider  in varchar2 default null
+    )
+    is
+        l_email          app_users.email%type := normalize_email(p_email);
+        l_provider       app_users.auth_provider%type;
+        l_attempt_label  varchar2(100 char);
+    begin
+        if l_email is null then
+            return;
+        end if;
+
+        begin
+            select auth_provider
+              into l_provider
+              from app_users
+             where lower(trim(email)) = l_email
+               and status = 'ACTIVE'
+               and (p_allowed_user_id is null or id != p_allowed_user_id)
+               and rownum = 1;
+        exception
+            when no_data_found then
+                return;
+        end;
+
+        l_attempt_label := case
+                              when p_attempt_provider is not null
+                              then ' Attempted login method: ' || p_attempt_provider || '.'
+                           end;
+
+        raise_application_error(
+            -20160,
+            'This email is already registered with ' || l_provider ||
+            '. Sign in using the existing login method instead of creating a new account.' ||
+            l_attempt_label
+        );
+    end assert_email_not_registered;
+
+    function password_hash (
+        p_salt     in varchar2,
+        p_password in varchar2
+    ) return varchar2
+    is
+    begin
+        return stable_hash(p_salt || ':' || p_password);
+    end password_hash;
+
+    procedure write_auth_debug (
+        p_event_type in varchar2,
+        p_notes      in varchar2
+    )
+    is
+        pragma autonomous_transaction;
+    begin
+        insert into app_api_event_log (
+            event_type,
+            current_user_value,
+            client_identifier,
+            notes
+        ) values (
+            substr(p_event_type, 1, 50),
+            substr(apex_application.g_user, 1, 255),
+            substr(sys_context('userenv', 'client_identifier'), 1, 255),
+            substr(p_notes, 1, 4000)
+        );
+
+        commit;
+    exception
+        when others then
+            rollback;
+    end write_auth_debug;
+
+    procedure validate_password (
+        p_password in varchar2
+    )
+    is
+    begin
+        if p_password is null or length(p_password) < 12 then
+            raise_application_error(-20101, 'Password must have at least 12 characters.');
+        end if;
+
+        if not regexp_like(p_password, '[[:upper:]]') then
+            raise_application_error(-20102, 'Password must contain at least one uppercase letter.');
+        end if;
+
+        if not regexp_like(p_password, '[[:lower:]]') then
+            raise_application_error(-20103, 'Password must contain at least one lowercase letter.');
+        end if;
+
+        if not regexp_like(p_password, '[[:digit:]]') then
+            raise_application_error(-20104, 'Password must contain at least one number.');
+        end if;
+    end validate_password;
+
+    procedure ensure_ords_role is
+    begin
+        begin
+            ords.create_role(p_role_name => g_ords_role_name);
+        exception
+            when others then
+                if sqlcode not in (-20001, -955) then
+                    raise;
+                end if;
+        end;
+    end ensure_ords_role;
+
+    procedure provision_ords_client (
+        p_app_user_id           in number,
+        p_identity_label        in varchar2,
+        p_email                 in varchar2,
+        p_out_client_name       out nocopy varchar2,
+        p_out_client_id         out nocopy varchar2,
+        p_out_client_secret     out nocopy varchar2,
+        p_out_created_now_flag  out nocopy varchar2
+    )
+    is
+        l_client_name    varchar2(255 char);
+        l_existing_id    app_user_oauth_clients.ords_client_id%type;
+        l_existing_name  app_user_oauth_clients.ords_client_name%type;
+    begin
+        begin
+            select ords_client_id, ords_client_name
+              into l_existing_id, l_existing_name
+              from app_user_oauth_clients
+             where app_user_id = p_app_user_id
+               and active_flag = 'Y';
+
+            p_out_client_name      := l_existing_name;
+            p_out_client_id        := l_existing_id;
+            p_out_client_secret    := null;
+            p_out_created_now_flag := 'N';
+            return;
+        exception
+            when no_data_found then
+                null;
+        end;
+
+        l_client_name := substr(
+            'APPUSR_' || p_app_user_id || '_' || stable_hash(p_identity_label),
+            1,
+            120
+        );
+
+        ensure_ords_role;
+
+        oauth.create_client(
+            p_name            => l_client_name,
+            p_grant_type      => 'client_credentials',
+            p_owner           => user,
+            p_description     => 'OAuth client created by the APEX self-service flow for app_user_id=' || p_app_user_id,
+            p_support_email   => nvl(p_email, 'noreply@example.com'),
+            p_privilege_names => g_ords_priv_name
+        );
+
+        oauth.grant_client_role(
+            p_client_name => l_client_name,
+            p_role_name   => g_ords_role_name
+        );
+
+        select client_id, client_secret
+          into p_out_client_id, p_out_client_secret
+          from user_ords_clients
+         where name = l_client_name;
+
+        insert into app_user_oauth_clients (
+            app_user_id,
+            ords_client_name,
+            ords_client_id,
+            active_flag
+        ) values (
+            p_app_user_id,
+            l_client_name,
+            p_out_client_id,
+            'Y'
+        );
+
+        p_out_client_name      := l_client_name;
+        p_out_created_now_flag := 'Y';
+    exception
+        when dup_val_on_index then
+            raise_application_error(-20120, 'An active OAuth client already exists for this user.');
+    end provision_ords_client;
+
+    procedure set_apex_identity (
+        p_app_user_id      in number,
+        p_auth_provider    in varchar2,
+        p_external_subject in varchar2,
+        p_email            in varchar2,
+        p_full_name        in varchar2
+    )
+    is
+    begin
+        apex_util.set_session_state('G_APP_USER_ID', p_app_user_id);
+        apex_util.set_session_state('G_AUTH_PROVIDER', p_auth_provider);
+        apex_util.set_session_state('G_EXTERNAL_SUBJECT', p_external_subject);
+        apex_util.set_session_state('G_SOCIAL_EMAIL', p_email);
+        apex_util.set_session_state('G_SOCIAL_FULL_NAME', p_full_name);
+    end set_apex_identity;
+
+    procedure clear_auth_notice is
+    begin
+        apex_util.set_session_state('G_AUTH_NOTICE_CODE', null);
+        apex_util.set_session_state('G_AUTH_NOTICE_EMAIL', null);
+        apex_util.set_session_state('G_AUTH_NOTICE_EXISTING_PROVIDER', null);
+        apex_util.set_session_state('G_AUTH_NOTICE_ATTEMPT_PROVIDER', null);
+        apex_util.set_session_state('G_AUTH_NOTICE_MESSAGE', null);
+    exception
+        when others then
+            null;
+    end clear_auth_notice;
+
+    function existing_provider_for_email (
+        p_email            in varchar2,
+        p_allowed_user_id  in number default null
+    ) return varchar2
+    is
+        l_email    app_users.email%type := normalize_email(p_email);
+        l_provider app_users.auth_provider%type;
+    begin
+        if l_email is null then
+            return null;
+        end if;
+
+        select auth_provider
+          into l_provider
+          from app_users
+         where lower(trim(email)) = l_email
+           and status = 'ACTIVE'
+           and (p_allowed_user_id is null or id != p_allowed_user_id)
+           and rownum = 1;
+
+        return l_provider;
+    exception
+        when no_data_found then
+            return null;
+    end existing_provider_for_email;
+
+    procedure set_duplicate_auth_notice (
+        p_email             in varchar2,
+        p_existing_provider in varchar2,
+        p_attempt_provider  in varchar2
+    )
+    is
+        l_message varchar2(4000 char);
+    begin
+        l_message := 'This email is already registered with ' || p_existing_provider ||
+                     '. Sign out and use the existing login method instead of creating a new account with ' ||
+                     p_attempt_provider || '.';
+
+        apex_util.set_session_state('G_APP_USER_ID', null);
+        apex_util.set_session_state('G_AUTH_PROVIDER', p_attempt_provider);
+        apex_util.set_session_state('G_AUTH_NOTICE_CODE', 'DUPLICATE_PROVIDER');
+        apex_util.set_session_state('G_AUTH_NOTICE_EMAIL', normalize_email(p_email));
+        apex_util.set_session_state('G_AUTH_NOTICE_EXISTING_PROVIDER', p_existing_provider);
+        apex_util.set_session_state('G_AUTH_NOTICE_ATTEMPT_PROVIDER', p_attempt_provider);
+        apex_util.set_session_state('G_AUTH_NOTICE_MESSAGE', l_message);
+    end set_duplicate_auth_notice;
+
+    procedure post_login_social (
+        p_auth_provider in varchar2
+    )
+    is
+        l_provider         varchar2(30 char);
+        l_external_subject varchar2(255 char);
+        l_app_user_id      app_users.id%type;
+        l_email            app_users.email%type;
+        l_full_name        app_users.full_name%type;
+        l_existing_provider app_users.auth_provider%type;
+    begin
+        l_provider := normalize_provider(p_auth_provider);
+        clear_auth_notice;
+
+        write_auth_debug(
+            p_event_type => 'POST_LOGIN_' || l_provider || '_START',
+            p_notes      => 'app_user=' || apex_application.g_user ||
+                            '; g_external_subject=' || apex_util.get_session_state('G_EXTERNAL_SUBJECT') ||
+                            '; g_google_sub=' || apex_util.get_session_state('G_GOOGLE_SUB') ||
+                            '; g_social_email=' || apex_util.get_session_state('G_SOCIAL_EMAIL') ||
+                            '; g_social_full_name=' || apex_util.get_session_state('G_SOCIAL_FULL_NAME')
+        );
+
+        if l_provider = 'GOOGLE' then
+            l_external_subject := apex_util.get_session_state('G_GOOGLE_SUB');
+        else
+            l_external_subject := apex_util.get_session_state('G_EXTERNAL_SUBJECT');
+        end if;
+
+        if l_external_subject is null then
+            l_external_subject := normalize_username(
+                coalesce(
+                    apex_application.g_user,
+                    apex_util.get_session_state('APP_USER')
+                )
+            );
+        end if;
+
+        if l_external_subject is null then
+            raise_application_error(
+                -20130,
+                'Provider subject is null. Check Social Sign-In attribute mapping for ' || l_provider || '.'
+            );
+        end if;
+
+        begin
+            select id, email, full_name
+              into l_app_user_id, l_email, l_full_name
+              from app_users
+             where auth_provider = l_provider
+               and external_subject = l_external_subject
+               and status = 'ACTIVE';
+
+            update app_users
+               set last_login_at = systimestamp
+             where id = l_app_user_id;
+        exception
+            when no_data_found then
+                l_app_user_id := null;
+                l_email := apex_util.get_session_state('G_SOCIAL_EMAIL');
+                l_full_name := apex_util.get_session_state('G_SOCIAL_FULL_NAME');
+
+                l_existing_provider := existing_provider_for_email(l_email);
+
+                if l_existing_provider is not null then
+                    set_duplicate_auth_notice(
+                        p_email             => l_email,
+                        p_existing_provider => l_existing_provider,
+                        p_attempt_provider  => l_provider
+                    );
+
+                    write_auth_debug(
+                        p_event_type => 'POST_LOGIN_' || l_provider || '_DUPLICATE',
+                        p_notes      => 'existing_provider=' || l_existing_provider ||
+                                        '; attempted_provider=' || l_provider ||
+                                        '; email=' || l_email ||
+                                        '; app_user=' || apex_application.g_user
+                    );
+
+                    return;
+                end if;
+        end;
+
+        set_apex_identity(
+            p_app_user_id      => l_app_user_id,
+            p_auth_provider    => l_provider,
+            p_external_subject => l_external_subject,
+            p_email            => l_email,
+            p_full_name        => l_full_name
+        );
+        
+        write_auth_debug(
+            p_event_type => 'POST_LOGIN_' || l_provider || '_OK',
+            p_notes      => 'app_user_id=' || coalesce(to_char(l_app_user_id), '<new-user>') ||
+                            '; external_subject=' || l_external_subject ||
+                            '; email=' || l_email ||
+                            '; full_name=' || l_full_name
+        );
+    exception
+        when others then
+            write_auth_debug(
+                p_event_type => 'POST_LOGIN_' || substr(l_provider, 1, 20) || '_ERROR',
+                p_notes      => 'sqlcode=' || sqlcode ||
+                                '; sqlerrm=' || sqlerrm ||
+                                '; backtrace=' || dbms_utility.format_error_backtrace ||
+                                '; app_user=' || apex_application.g_user ||
+                                '; g_external_subject=' || apex_util.get_session_state('G_EXTERNAL_SUBJECT') ||
+                                '; g_social_email=' || apex_util.get_session_state('G_SOCIAL_EMAIL') ||
+                                '; g_social_full_name=' || apex_util.get_session_state('G_SOCIAL_FULL_NAME')
+            );
+            raise;
+    end post_login_social;
+
+    function authenticate_custom (
+        p_username in varchar2,
+        p_password in varchar2
+    ) return boolean
+    is
+        l_username      app_users.username%type;
+        l_app_user_id   app_users.id%type;
+        l_email         app_users.email%type;
+        l_full_name     app_users.full_name%type;
+        l_salt          app_users.password_salt%type;
+        l_hash          app_users.password_hash%type;
+    begin
+        l_username := normalize_username(p_username);
+
+        select id, email, full_name, password_salt, password_hash
+          into l_app_user_id, l_email, l_full_name, l_salt, l_hash
+          from app_users
+         where auth_provider = 'CUSTOM'
+           and lower(username) = l_username
+           and status = 'ACTIVE';
+
+        if l_hash = password_hash(l_salt, p_password) then
+            update app_users
+               set last_login_at = systimestamp
+             where id = l_app_user_id;
+
+            set_apex_identity(
+                p_app_user_id      => l_app_user_id,
+                p_auth_provider    => 'CUSTOM',
+                p_external_subject => l_username,
+                p_email            => l_email,
+                p_full_name        => l_full_name
+            );
+
+            return true;
+        end if;
+
+        write_auth_debug(
+            p_event_type => 'CUSTOM_LOGIN_FAIL',
+            p_notes      => 'reason=PASSWORD_MISMATCH; username=' || l_username
+        );
+
+        return false;
+    exception
+        when no_data_found then
+            write_auth_debug(
+                p_event_type => 'CUSTOM_LOGIN_FAIL',
+                p_notes      => 'reason=USER_NOT_FOUND; username=' || l_username
+            );
+            return false;
+        when others then
+            write_auth_debug(
+                p_event_type => 'CUSTOM_LOGIN_ERROR',
+                p_notes      => 'username=' || l_username ||
+                                '; sqlcode=' || sqlcode ||
+                                '; sqlerrm=' || sqlerrm ||
+                                '; backtrace=' || dbms_utility.format_error_backtrace
+            );
+            raise;
+    end authenticate_custom;
+
+    procedure post_login_google is
+    begin
+        post_login_social('GOOGLE');
+    end post_login_google;
+
+    procedure post_login_facebook is
+    begin
+        post_login_social('FACEBOOK');
+    end post_login_facebook;
+
+    procedure post_login_custom is
+        l_username    app_users.username%type;
+        l_app_user_id app_users.id%type;
+        l_email       app_users.email%type;
+        l_full_name   app_users.full_name%type;
+    begin
+        clear_auth_notice;
+
+        l_username := normalize_username(
+            coalesce(
+                apex_application.g_user,
+                apex_util.get_session_state('APP_USER')
+            )
+        );
+
+        if l_username is null then
+            raise_application_error(
+                -20170,
+                'Custom login completed, but APP_USER was not available in the post-authentication step.'
+            );
+        end if;
+
+        select id, email, full_name
+          into l_app_user_id, l_email, l_full_name
+          from app_users
+         where auth_provider = 'CUSTOM'
+           and lower(username) = l_username
+           and status = 'ACTIVE';
+
+        update app_users
+           set last_login_at = systimestamp
+         where id = l_app_user_id;
+
+        set_apex_identity(
+            p_app_user_id      => l_app_user_id,
+            p_auth_provider    => 'CUSTOM',
+            p_external_subject => l_username,
+            p_email            => l_email,
+            p_full_name        => l_full_name
+        );
+
+        write_auth_debug(
+            p_event_type => 'POST_LOGIN_CUSTOM_OK',
+            p_notes      => 'app_user=' || apex_application.g_user ||
+                            '; username=' || l_username ||
+                            '; app_user_id=' || l_app_user_id
+        );
+    exception
+        when no_data_found then
+            write_auth_debug(
+                p_event_type => 'POST_LOGIN_CUSTOM_ERROR',
+                p_notes      => 'reason=USER_NOT_FOUND; app_user=' || apex_application.g_user ||
+                                '; username=' || l_username
+            );
+            raise_application_error(
+                -20171,
+                'Custom login user was authenticated, but no active application user was found for ' || l_username || '.'
+            );
+        when others then
+            write_auth_debug(
+                p_event_type => 'POST_LOGIN_CUSTOM_ERROR',
+                p_notes      => 'app_user=' || apex_application.g_user ||
+                                '; username=' || l_username ||
+                                '; sqlcode=' || sqlcode ||
+                                '; sqlerrm=' || sqlerrm ||
+                                '; backtrace=' || dbms_utility.format_error_backtrace
+            );
+            raise;
+    end post_login_custom;
+
+    procedure complete_social_registration (
+        p_auth_provider         in varchar2,
+        p_external_subject      in varchar2,
+        p_email                 in varchar2,
+        p_full_name             in varchar2,
+        p_birth_date            in date,
+        p_phone_number          in varchar2,
+        p_out_app_user_id       out nocopy number,
+        p_out_client_name       out nocopy varchar2,
+        p_out_client_id         out nocopy varchar2,
+        p_out_client_secret     out nocopy varchar2,
+        p_out_created_now_flag  out nocopy varchar2
+    )
+    is
+        l_provider     varchar2(30 char);
+        l_phone_number app_users.phone_number%type;
+        l_existing_user_id app_users.id%type;
+    begin
+        l_provider := normalize_provider(p_auth_provider);
+
+        if l_provider = 'CUSTOM' then
+            raise_application_error(-20140, 'Use CREATE_CUSTOM_USER for custom registrations.');
+        end if;
+
+        if p_external_subject is null then
+            raise_application_error(-20141, 'Provider subject is required.');
+        end if;
+
+        begin
+            select id
+              into l_existing_user_id
+              from app_users
+             where auth_provider = l_provider
+               and external_subject = p_external_subject;
+        exception
+            when no_data_found then
+                l_existing_user_id := null;
+        end;
+
+        assert_email_not_registered(
+            p_email            => p_email,
+            p_allowed_user_id  => l_existing_user_id,
+            p_attempt_provider => l_provider
+        );
+
+        app_user_api.validate_profile(
+            p_full_name    => p_full_name,
+            p_birth_date   => p_birth_date,
+            p_phone_number => p_phone_number
+        );
+
+        l_phone_number := app_user_api.normalize_phone(p_phone_number);
+
+        merge into app_users dst
+        using (
+            select l_provider as auth_provider,
+                   p_external_subject as external_subject,
+                   case when l_provider = 'GOOGLE' then p_external_subject end as google_sub,
+                   p_email as email,
+                   trim(p_full_name) as full_name,
+                   p_birth_date as birth_date,
+                   l_phone_number as phone_number
+              from dual
+        ) src
+           on (dst.auth_provider = src.auth_provider and dst.external_subject = src.external_subject)
+        when matched then update
+             set dst.email = coalesce(src.email, dst.email),
+                 dst.full_name = src.full_name,
+                 dst.birth_date = src.birth_date,
+                 dst.phone_number = src.phone_number,
+                 dst.google_sub = coalesce(dst.google_sub, src.google_sub),
+                 dst.status = 'ACTIVE'
+        when not matched then insert (
+             auth_provider, external_subject, google_sub, email, full_name,
+             birth_date, phone_number, status
+        ) values (
+             src.auth_provider, src.external_subject, src.google_sub, src.email, src.full_name,
+             src.birth_date, src.phone_number, 'ACTIVE'
+        );
+
+        select id
+          into p_out_app_user_id
+          from app_users
+         where auth_provider = l_provider
+           and external_subject = p_external_subject;
+
+        set_apex_identity(
+            p_app_user_id      => p_out_app_user_id,
+            p_auth_provider    => l_provider,
+            p_external_subject => p_external_subject,
+            p_email            => p_email,
+            p_full_name        => p_full_name
+        );
+
+        provision_ords_client(
+            p_app_user_id           => p_out_app_user_id,
+            p_identity_label        => l_provider || ':' || p_external_subject,
+            p_email                 => p_email,
+            p_out_client_name       => p_out_client_name,
+            p_out_client_id         => p_out_client_id,
+            p_out_client_secret     => p_out_client_secret,
+            p_out_created_now_flag  => p_out_created_now_flag
+        );
+    end complete_social_registration;
+
+    procedure create_custom_user (
+        p_email                 in varchar2,
+        p_full_name             in varchar2,
+        p_birth_date            in date,
+        p_phone_number          in varchar2,
+        p_password              in varchar2,
+        p_out_app_user_id       out nocopy number,
+        p_out_client_name       out nocopy varchar2,
+        p_out_client_id         out nocopy varchar2,
+        p_out_client_secret     out nocopy varchar2,
+        p_out_created_now_flag  out nocopy varchar2
+    )
+    is
+        l_username     app_users.username%type := normalize_email(p_email);
+        l_salt         app_users.password_salt%type;
+        l_phone_number app_users.phone_number%type;
+        l_password_hash app_users.password_hash%type;
+    begin
+        if l_username is null or not regexp_like(l_username, '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$') then
+            raise_application_error(-20150, 'A valid email is required for custom login.');
+        end if;
+
+        assert_email_not_registered(
+            p_email            => l_username,
+            p_attempt_provider => 'CUSTOM'
+        );
+
+        validate_password(p_password);
+
+        app_user_api.validate_profile(
+            p_full_name    => p_full_name,
+            p_birth_date   => p_birth_date,
+            p_phone_number => p_phone_number
+        );
+
+        l_salt := rawtohex(sys_guid()) || rawtohex(sys_guid());
+        l_password_hash := password_hash(l_salt, p_password);
+        l_phone_number := app_user_api.normalize_phone(p_phone_number);
+
+        insert into app_users (
+            auth_provider,
+            external_subject,
+            username,
+            email,
+            full_name,
+            birth_date,
+            phone_number,
+            password_salt,
+            password_hash,
+            password_changed_at,
+            status
+        ) values (
+            'CUSTOM',
+            l_username,
+            l_username,
+            l_username,
+            trim(p_full_name),
+            p_birth_date,
+            l_phone_number,
+            l_salt,
+            l_password_hash,
+            systimestamp,
+            'ACTIVE'
+        )
+        returning id into p_out_app_user_id;
+
+        set_apex_identity(
+            p_app_user_id      => p_out_app_user_id,
+            p_auth_provider    => 'CUSTOM',
+            p_external_subject => l_username,
+            p_email            => l_username,
+            p_full_name        => p_full_name
+        );
+
+        provision_ords_client(
+            p_app_user_id           => p_out_app_user_id,
+            p_identity_label        => 'CUSTOM:' || l_username,
+            p_email                 => l_username,
+            p_out_client_name       => p_out_client_name,
+            p_out_client_id         => p_out_client_id,
+            p_out_client_secret     => p_out_client_secret,
+            p_out_created_now_flag  => p_out_created_now_flag
+        );
+    exception
+        when dup_val_on_index then
+            raise_application_error(
+                -20151,
+                'This email is already registered. Sign in using the existing login method instead of creating a new account.'
+            );
+    end create_custom_user;
+end app_multi_auth;
+/
+
+show errors
+
+begin
+    execute immediate 'alter package app_user_api compile';
+    execute immediate 'alter package app_user_api compile body';
+    execute immediate 'alter package app_apex_auth compile';
+    execute immediate 'alter package app_apex_auth compile body';
+end;
+/
+
+show errors package app_user_api
+show errors package body app_user_api
+show errors package app_apex_auth
+show errors package body app_apex_auth

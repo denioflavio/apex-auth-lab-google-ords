@@ -62,6 +62,9 @@ case "${1:-all}" in
   reset-demo)
     run_script "${PROJECT_DIR}/sql/07_reset_demo_data.sql"
     ;;
+  multi-login)
+    run_script "${PROJECT_DIR}/sql/08_multi_login_evolution.sql"
+    ;;
   all)
     run_script "${PROJECT_DIR}/sql/01_tables.sql"
     run_script "${PROJECT_DIR}/sql/02_packages.sql"
@@ -69,7 +72,7 @@ case "${1:-all}" in
     run_script "${PROJECT_DIR}/sql/04_apex_helpers.sql"
     ;;
   *)
-    echo "Usage: ./run_sqlcl.sh [test|tables|packages|ords|apex-helpers|checks|reset-demo|all]"
+    echo "Usage: ./run_sqlcl.sh [test|tables|packages|ords|apex-helpers|checks|reset-demo|multi-login|all]"
     exit 1
     ;;
 esac

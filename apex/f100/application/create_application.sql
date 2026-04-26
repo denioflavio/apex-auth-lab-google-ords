@@ -28,7 +28,7 @@ wwv_imp_workspace.create_flow(
 ,p_timestamp_format=>'DS'
 ,p_timestamp_tz_format=>'DS'
 ,p_flow_image_prefix => nvl(wwv_flow_application_install.get_image_prefix,'')
-,p_authentication_id=>wwv_flow_imp.id(10898631635632048)
+,p_authentication_id=>wwv_flow_imp.id(12254442905727874)
 ,p_application_tab_set=>0
 ,p_logo_type=>'T'
 ,p_logo_text=>'Google ORDS Self-Service Demo'
@@ -48,7 +48,7 @@ wwv_imp_workspace.create_flow(
 ,p_substitution_value_01=>'Google ORDS Self-Service Demo'
 ,p_file_prefix => nvl(wwv_flow_application_install.get_static_app_file_prefix,'')
 ,p_files_version=>11
-,p_version_scn=>45283845508828
+,p_version_scn=>45284504675472
 ,p_print_server_type=>'NATIVE'
 ,p_file_storage=>'DB'
 ,p_is_pwa=>'Y'

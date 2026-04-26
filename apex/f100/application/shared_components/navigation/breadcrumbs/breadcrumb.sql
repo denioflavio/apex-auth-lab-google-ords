@@ -16,12 +16,6 @@ wwv_flow_imp_shared.create_menu(
 ,p_name=>'Breadcrumb'
 );
 wwv_flow_imp_shared.create_menu_option(
- p_id=>wwv_flow_imp.id(10859268351292521)
-,p_short_name=>'Home'
-,p_link=>'f?p=&APP_ID.:1:&APP_SESSION.::&DEBUG.:::'
-,p_page_id=>1
-);
-wwv_flow_imp_shared.create_menu_option(
  p_id=>wwv_flow_imp.id(10883832683134180)
 ,p_short_name=>'Complete your profile'
 ,p_link=>'f?p=&APP_ID.:10:&APP_SESSION.::&DEBUG.:::'

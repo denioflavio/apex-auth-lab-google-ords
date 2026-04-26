@@ -36,7 +36,7 @@ wwv_flow_imp_page.create_page_plug(
 wwv_flow_imp_page.create_page_item(
  p_id=>wwv_flow_imp.id(10880013062148130)
 ,p_name=>'P20_FULL_NAME'
-,p_item_sequence=>10
+,p_item_sequence=>30
 ,p_prompt=>'Full Name'
 ,p_display_as=>'NATIVE_DISPLAY_ONLY'
 ,p_field_template=>1609121967514267634
@@ -50,7 +50,7 @@ wwv_flow_imp_page.create_page_item(
 wwv_flow_imp_page.create_page_item(
  p_id=>wwv_flow_imp.id(10880177752148131)
 ,p_name=>'P20_EMAIL'
-,p_item_sequence=>20
+,p_item_sequence=>40
 ,p_prompt=>'Email'
 ,p_display_as=>'NATIVE_DISPLAY_ONLY'
 ,p_field_template=>1609121967514267634
@@ -64,7 +64,7 @@ wwv_flow_imp_page.create_page_item(
 wwv_flow_imp_page.create_page_item(
  p_id=>wwv_flow_imp.id(10880269112148132)
 ,p_name=>'P20_PHONE_NUMBER'
-,p_item_sequence=>30
+,p_item_sequence=>50
 ,p_prompt=>'Phone Number'
 ,p_display_as=>'NATIVE_DISPLAY_ONLY'
 ,p_field_template=>1609121967514267634
@@ -78,7 +78,7 @@ wwv_flow_imp_page.create_page_item(
 wwv_flow_imp_page.create_page_item(
  p_id=>wwv_flow_imp.id(10880319703148133)
 ,p_name=>'P20_CLIENT_NAME'
-,p_item_sequence=>40
+,p_item_sequence=>60
 ,p_prompt=>'Client Name'
 ,p_display_as=>'NATIVE_DISPLAY_ONLY'
 ,p_field_template=>1609121967514267634
@@ -92,7 +92,7 @@ wwv_flow_imp_page.create_page_item(
 wwv_flow_imp_page.create_page_item(
  p_id=>wwv_flow_imp.id(10880483573148134)
 ,p_name=>'P20_CLIENT_ID'
-,p_item_sequence=>50
+,p_item_sequence=>70
 ,p_prompt=>'Client Id'
 ,p_display_as=>'NATIVE_DISPLAY_ONLY'
 ,p_field_template=>1609121967514267634
@@ -106,7 +106,7 @@ wwv_flow_imp_page.create_page_item(
 wwv_flow_imp_page.create_page_item(
  p_id=>wwv_flow_imp.id(10880555207148135)
 ,p_name=>'P20_CLIENT_SECRET'
-,p_item_sequence=>60
+,p_item_sequence=>80
 ,p_prompt=>'Client Secret'
 ,p_display_as=>'NATIVE_DISPLAY_ONLY'
 ,p_field_template=>1609121967514267634
@@ -120,9 +120,38 @@ wwv_flow_imp_page.create_page_item(
 wwv_flow_imp_page.create_page_item(
  p_id=>wwv_flow_imp.id(10880692120148136)
 ,p_name=>'P20_MESSAGE'
-,p_item_sequence=>70
+,p_item_sequence=>90
 ,p_prompt=>'Message'
 ,p_display_as=>'NATIVE_DISPLAY_ONLY'
+,p_field_template=>1609121967514267634
+,p_item_template_options=>'#DEFAULT#'
+,p_attributes=>wwv_flow_t_plugin_attributes(wwv_flow_t_varchar2(
+  'based_on', 'VALUE',
+  'format', 'PLAIN',
+  'send_on_page_submit', 'Y',
+  'show_line_breaks', 'Y')).to_clob
+);
+wwv_flow_imp_page.create_page_item(
+ p_id=>wwv_flow_imp.id(12260423143641448)
+,p_name=>'P20_AUTH_PROVIDER'
+,p_item_sequence=>10
+,p_prompt=>'Auth Provider'
+,p_display_as=>'NATIVE_DISPLAY_ONLY'
+,p_field_template=>1609121967514267634
+,p_item_template_options=>'#DEFAULT#'
+,p_attributes=>wwv_flow_t_plugin_attributes(wwv_flow_t_varchar2(
+  'based_on', 'VALUE',
+  'format', 'PLAIN',
+  'send_on_page_submit', 'Y',
+  'show_line_breaks', 'Y')).to_clob
+);
+wwv_flow_imp_page.create_page_item(
+ p_id=>wwv_flow_imp.id(12260569115641449)
+,p_name=>'P20_USERNAME'
+,p_item_sequence=>20
+,p_prompt=>'Username'
+,p_display_as=>'NATIVE_DISPLAY_ONLY'
+,p_begin_on_new_line=>'N'
 ,p_field_template=>1609121967514267634
 ,p_item_template_options=>'#DEFAULT#'
 ,p_attributes=>wwv_flow_t_plugin_attributes(wwv_flow_t_varchar2(
@@ -136,14 +165,29 @@ wwv_flow_imp_page.create_page_process(
 ,p_process_sequence=>10
 ,p_process_point=>'BEFORE_HEADER'
 ,p_process_type=>'NATIVE_PLSQL'
-,p_process_name=>'FECTH_USER'
+,p_process_name=>'FETCH_USER'
 ,p_process_sql_clob=>wwv_flow_string.join(wwv_flow_t_varchar2(
 'declare',
 '    l_client_name varchar2(255 char);',
 '    l_client_id   varchar2(255 char);',
 'begin',
-'    select full_name, email, phone_number',
-'      into :P20_FULL_NAME, :P20_EMAIL, :P20_PHONE_NUMBER',
+'    if :G_APP_USER_ID is null then',
+'        raise_application_error(',
+'            -20200,',
+'            ''Application user was not resolved. Sign in again.''',
+'        );',
+'    end if;',
+'',
+'    select full_name,',
+'           email,',
+'           phone_number,',
+'           auth_provider,',
+'           username',
+'      into :P20_FULL_NAME,',
+'           :P20_EMAIL,',
+'           :P20_PHONE_NUMBER,',
+'           :P20_AUTH_PROVIDER,',
+'           :P20_USERNAME',
 '      from app_users',
 '     where id = :G_APP_USER_ID;',
 '',
